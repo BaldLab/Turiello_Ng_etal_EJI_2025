@@ -610,6 +610,78 @@ for(i in 1:length(cell.groups)){
 
 ```
 
+
+
+### Subsetted vlnplots NKG7 vs TIA1 -- Raw values -- TIA1 not found in imputed
+```{r vlnplots_NKG7_vs_TIA1_imputed}
+
+# set assay 
+DefaultAssay(pbmc.seurat) <- "SCT"
+
+goi <- c("NKG7", "TIA1")
+
+######################
+# Violin Plots
+######################
+output.dir <- "results/figures/PBMC_Stacked_VlnPlots_SCT_TIA1_and_NKG7/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+for(i in 1:length(cell.groups)){
+  Idents(pbmc.seurat) <- pbmc.seurat@meta.data$custom_anno
+  temp.seurat <- subset(pbmc.seurat, idents = cell.groups[[i]])
+  
+  p1 <- scCustomize::Stacked_VlnPlot(temp.seurat, 
+                                     features = goi,
+                                     pt.size = 0, 
+                                     group.by = "custom_anno",
+                                     x_lab_rotate = 90) 
+  
+  for(j in 1:length(p1)){
+    p1[[j]] <- p1[[j]] + theme(
+      plot.margin = margin(t = 0,
+                           r = 10,
+                           b = 0,
+                           l = 0, unit = "cm")
+    )
+  }
+  
+  print(p1)
+  
+  dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplots_",  names(cell.groups)[i], "group_NKG7_vs_TIA1_SCT.pdf"))
+  dev.off()
+}
+
+
+
+
+
+# across all annotation
+Idents(pbmc.seurat) <- pbmc.seurat@meta.data$custom_anno
+
+
+scCustomize::Stacked_VlnPlot(pbmc.seurat, 
+                             features = goi,
+                             pt.size = 0, 
+                             group.by = "custom_anno",
+                             x_lab_rotate = 90) 
+
+
+
+dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplots_NKG7_vs_TIA1_SCT.pdf"))
+dev.off()
+
+
+
+
+
+
+```
+
+
+
 ### Subsetted vlnplots CST genes
 ```{r vlnplots_CST_genes}
 
@@ -1280,10 +1352,11 @@ for(i in 1:length(group.list)){
  
  
  
+## Co-expression boolean {.tabset}
 
 
 
-### Co-expression boolean
+### Co-expression boolean upset plots
 ```{r boolean_coexpression_upset_plots}
 
 # note use ComplexUpset not UpsetR package
@@ -1291,7 +1364,7 @@ for(i in 1:length(group.list)){
 library(ComplexUpset)
 
 # Create results directories
-output.dir <- "results/figures/boolean_expression/"
+output.dir <- "results/figures/PBMC_dataset_boolean_upset_plots/"
 
 if(!dir.exists(output.dir)){
   dir.create(output.dir,
@@ -1418,6 +1491,188 @@ for(j in seq_along(subset.var)){
   
   
 }
+
+
+
+
+
+```
+ 
+ 
+### Co-expression boolean heatmap plots
+
+```{r boolean_heatmap_plots}
+
+
+
+# Create results directories
+output.dir <- "results/figures/PBMC_dataset_boolean_heatmaps/"
+
+if(!dir.exists(output.dir)){
+  dir.create(output.dir,
+             recursive = TRUE)}
+
+
+
+
+library(gplots)
+
+######################################################################
+# heatmaps of non-scaled values showing co-expression patterns 
+######################################################################
+
+# set up object
+DefaultAssay(pbmc.seurat) <- "SCT"
+Idents(pbmc.seurat) <- pbmc.seurat@meta.data$custom_anno
+
+
+# populations to loop over
+subset.var <- c("CD8_Naive", "CD8_CM", "dnT", "CD8_EM", "CD4_CTL", "NK_Bright", "NK_Dim", "gdT_V9D2", "gdT", "MAIT")
+
+table(pbmc.seurat@meta.data$custom_anno)
+
+# set a custom breaks so all heatmaps are on same colour scale and can be compared
+length(batlow.pal)
+
+custom_breaks <- seq(from = 0, to = 6, length.out = 101)
+
+
+for(i in seq_along(subset.var)){
+  
+  # subset dataset
+  temp.seurat <- subset(pbmc.seurat, idents = subset.var[i])
+  
+  # scale dataset
+  temp.seurat <- ScaleData(temp.seurat)
+  
+  
+  # extract values 
+  data_values <- FetchData(temp.seurat,
+                           vars = cytotoxicity.markers, 
+                           layer = "data")
+  
+  # remove any NA values
+  data_values <- data_values %>%
+    filter(!all(is.na(.)))  # Keep rows where not all values are NA
+  
+  
+  # set random sample value, min of 2,000 or entire dataset
+  n.val <- min(2000, nrow(data_values))  
+  
+  
+  # Randomly sample rows
+  sampled_df <- data_values %>% 
+    sample_n(size = n.val, replace = FALSE)  # Sample without replacement
+  
+  # flip dataframe
+  sampled_df <- t(sampled_df)
+  
+  # if value below threshold value, set to 0
+  sampled_df[sampled_df < theshold.val] <- 0
+  
+  
+  # Create heatmap
+  print(
+    heatmap.2(as.matrix(sampled_df),   # Convert data frame to matrix
+              trace = "none",   # Do not display trace lines
+              col = batlow.pal,  
+              breaks = custom_breaks,
+              scale = "none",   # Do not scale rows or columns
+              dendrogram = "column",  
+              Rowv = FALSE,     
+              Colv = TRUE,     
+              margins = c(10, 10),  # Adjust margins for row and column labels
+              labRow = rownames(sampled_df),
+              labCol = TRUE,
+              na.rm=TRUE,
+              na.color = "white",
+              xlab = "Cells",
+              ylab = "Cytotoxicity Markers",
+              main = paste0(subset.var[i], " not scaled"),
+              distfun = function(x){dist(x , method = "euclidean")},
+              hclustfun = function(x){hclust(x , method = "ward.D2")}
+    )
+  )
+  
+  dev.copy(pdf, paste0(output.dir, "Heatmap_not_scaled_", subset.var[i], "_only.pdf"))
+  dev.off()
+  
+  
+}
+
+
+
+
+```
+ 
+ 
+ 
+ ### TEMP KEEP< BUT PROBABLY REMOVE this chunk
+ 
+### Visualise NKG7 and TIA1 expression in bulk RNAseq datasets
+```{r bulk_RNAseq_datasets_NKG7_vs_TIA1}
+
+
+library(ggplot2)
+
+
+Monaco_data <- celldex::MonacoImmuneData()
+
+
+
+# Extract gene expression data
+gene_expression <- assay(Monaco_data)
+gene_expression <- as.data.frame(gene_expression)
+
+gene_expression$gene <- rownames(gene_expression)
+
+
+grep("TIA1", rownames(gene_expression), value = T)
+grep("NKG7", rownames(gene_expression), value = T)
+
+gene_expression <- gene_expression[rownames(gene_expression) %in% c("NKG7", "TIA1"), ]
+
+
+library(tidyr)
+library(ggplot2)
+
+# Convert data to long format
+df_long <- pivot_longer(gene_expression, 
+                        cols = -gene, 
+                        names_to = "Cell_Type",
+                        values_to = "Expression")
+
+
+unique(df_long$Cell_Type)
+
+
+
+# Remove alphanumeric code and first underscore from Cell_Type
+df_long$Cell_Type <- gsub("^[[:alnum:]]{4}_", "", df_long$Cell_Type)
+
+# Display unique cell types after modification
+unique(df_long$Cell_Type)
+
+
+
+# Calculate average expression value for NKG7 for each cell type
+average_expression <- df_long %>%
+  filter(gene == "NKG7") %>%
+  group_by(Cell_Type) %>%
+  summarise(Avg_Expression_NKG7 = mean(Expression))
+
+# Reorder levels of Cell_Type factor based on average expression value for NKG7
+df_long$Cell_Type <- factor(df_long$Cell_Type, levels = average_expression$Cell_Type[order(average_expression$Avg_Expression_NKG7, decreasing = T)])
+
+# Plot boxplot
+ggplot(df_long, aes(x = Cell_Type, y = Expression, fill = gene)) +
+  geom_boxplot() +
+  geom_jitter(position = position_jitter(width = 0.2), alpha = 0.5) +
+  labs(x = "Cell Type", y = "Expression Value", fill = "Gene") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(values = c("NKG7" = "red", "TIA1" = "blue"))  # Customize colors if needed
+
+
 
 ```
 
@@ -1728,5 +1983,59 @@ rm(temp.seurat)
 
 ```
 
+### work in progress, playground 
+
+### heatmap
+```{r heatmap_TIA_NKG7}
+
+######################
+# Heatmap plot
+######################
+
+output.dir <- "results/figures/NKG7_vs_TIA1/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+########################
+# For RNA genes
+########################
+
+# set assay 
+DefaultAssay(pbmc.seurat) <- "SCT"
+
+goi <- c("TIA1", "NKG7")
+
+# quick plot to look at data
+VlnPlot_scCustom(pbmc.seurat,
+                 features = goi,
+                 pt.size = 0,
+                 group.by = "celltype.l1",
+                 sort = "increasing",
+                 log = FALSE, 
+                 same.y.lim = T) + NoLegend()
+
+# select order for data to be in 
+temp.seurat <- pbmc.seurat
+temp.seurat@meta.data$celltype.l1 <- factor(temp.seurat@meta.data$celltype.l1, levels = c("NK", "other_T", "CD8_T", "other", "CD4_T", "B", "Mono", "DC"))
+
+# ordered data
+VlnPlot_scCustom(temp.seurat,
+                 features = goi,
+                 pt.size = 0,
+                 group.by = "celltype.l1",
+                 log = FALSE, 
+                 same.y.lim = T) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "VlnPlot_NKG7_vs_TIA1.pdf"))
+dev.off()
+
+
+
+# data from gene expression atlas
+
+
+
+```
 
 

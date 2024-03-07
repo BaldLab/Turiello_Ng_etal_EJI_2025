@@ -1,7 +1,7 @@
 ---
-title: "Tabula_Sapeins_dataset_Ng_Turiello"
+title: "Tabula_Sapeins_dataset_analysis"
 author: "Dillon Corvino"
-date: "30/03/2021"
+date: "04/02/2024"
 output:
   html_document:
     toc: true
@@ -48,7 +48,7 @@ cat("\014")     #Clean Console
 gc() # Free memory
 
 # pipeline variables
-long.compute <- TRUE
+long.compute <- FALSE
 
 # Establish working directory
 library("rstudioapi")
@@ -60,321 +60,44 @@ setwd("..")
 # Create output directories & load custom functions & colour scheme
 source("scripts/Setup.R", local = knitr::knit_global())
 
-
-# Install packages 
-remotes::install_github("mojaveazure/seurat-object", "seurat5", quiet = FALSE)
-remotes::install_github("satijalab/seurat", "seurat5", quiet = FALSE)
-remotes::install_github("satijalab/seurat-data", "seurat5", quiet = FALSE)
-remotes::install_github("satijalab/seurat-wrappers", "seurat5", quiet = FALSE)
-
-
-remotes::install_github("stuart-lab/signac", "seurat5", quiet = FALSE)
-remotes::install_github("satijalab/azimuth", "seurat5", quiet = FALSE)
-remotes::install_github("bnprks/BPCells", quiet = FALSE)
-
-# load packages
-library(Seurat)
-library(SeuratData)
-library(BPCells)
-library(dplyr)
-
-library(Signac)
-# set seurat to version 5
-#options(Seurat.object.assay.version = "v5")
-#getOption("Seurat.object.assay.version")
 ```
 
-### Load dataset & filter dataset
+
+### load dataset
 ```{r load_dataset}
 
-if(long.compute){
-  
-  # issue converting h5ad object to h5seurat object using seurat functions
-  # therefore use alternative approach using zellkonverter
-  #BiocManager::install("zellkonverter")
-  
-  library("zellkonverter")
-  
-  ad <- readH5AD("data/TS_immune.h5ad")
-  
-  ts.immune.seurat <- as.Seurat(ad, counts = "X", data = NULL)
-  
-  # save object as seurat object
-  SaveH5Seurat(ts.immune.seurat, "data/TS_immune.h5seurat", overwrite = TRUE)
-  
-}
+#######################
+# load dataset
+#######################
 
+# dataset processed as part of Tabula_Sapiens github repo, filter and normalise and integrate and caclulate umap dims etc all done in that script
 
+ts.immune.seurat <- LoadH5Seurat("data/TS_immune_imputed.h5Seurat", assays = c("SCT", "alra"))
 
-ts.immune.seurat <- LoadH5Seurat("data/TS_immune.h5seurat")
+################################################################################################
+# for easy of use rename the integrattted cca umap in the object to just "umap"
+################################################################################################
 
-
-ts.immune.seurat # 58,870 genes across 264,824 cells
-
-table(ts.immune.seurat@meta.data$method) # 14,863 cells from smartseq2 but most i.e 249,961 are from 10X
-
-# remove smartseq2 cells
-
-table(ts.immune.seurat@meta.data$donor)
-table(ts.immune.seurat@meta.data$gender)
-table(ts.immune.seurat@meta.data$organ_tissue)
-unique(ts.immune.seurat@meta.data$cell_ontology_class) # 62 levels
-unique(ts.immune.seurat@meta.data$free_annotation) # 147 levels
-unique(ts.immune.seurat@meta.data$organ_tissue) # 24 levels
-length(unique(ts.immune.seurat@meta.data$donor)) # 15 donors
-
-# Tabula Sapeins annotations are a mess. many are just mis-spelt etc 
-# exported annotations "free_annotations" and re-formatted into a number of different levels and groups
-
-
-
-
-Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
-small.seurat <- subset(ts.immune.seurat, downsample = 100)
-
-#small.seurat <- ts.immune.seurat
-
-
-cluster.annotation <- read.csv("data/Tabula_Sapiens_cluster_annotation.csv", sep = ";")
-cluster.annotation
-colnames(cluster.annotation)
-
-
-cluster.annotation <- cluster.annotation %>%
-  select(Original, Grouped_l1, Grouped_l2, Grouped_l3, Grouped_l4)
-
-# Perform a left join with the Seurat metadata
-small.seurat@meta.data$free_annotation <- as.character(small.seurat@meta.data$free_annotation)
-small.seurat@meta.data$organ_tissue <- as.character(small.seurat@meta.data$organ_tissue)
-
-
-result_join <- left_join(small.seurat@meta.data, cluster.annotation, by = c("free_annotation" = "Original"))
-
-# for some reason parsing the entire metadata to replace seurat metadata causes a format error 
-# therefore need to parse specific columns to add to metadata 
-small.seurat@meta.data$Grouped_l1 <- result_join$Grouped_l1
-small.seurat@meta.data$Grouped_l2 <- result_join$Grouped_l2
-small.seurat@meta.data$Grouped_l3 <- result_join$Grouped_l3
-small.seurat@meta.data$Grouped_l4 <- result_join$Grouped_l4
-
-
-# something is messing the annotation when its applied to the full dataset
-# subset of the dataset works fine but not fulll dataset 
-
-
-DimPlot(small.seurat, 
-        group.by = "Grouped_l1", 
-        pt.size = 1,
-        label = T,
-        reduction = "X_umap") + NoLegend()
-
-
-
-
-
-
-
-
-
-unique(ts.immune.seurat@meta.data$Grouped_l1)
-
-ts.immune.seurat@meta.data %>%
-  glimpse()
-
-ts.immune.seurat@meta.data$Grouped_l1 <- as.factor(ts.immune.seurat@meta.data$Grouped_l1)
-
-unique(ts.immune.seurat@meta.data$Grouped_l1)
-
-sum(is.na(ts.immune.seurat@meta.data$Grouped_l1))
-
-Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
-small.seurat <- subset(ts.immune.seurat, downsample = 500)
-
-
-
-
-
-
-
-
-
-VlnPlot_scCustom(small.seurat, 
-                 pt.size = 0, 
-                 group.by = "Grouped_l1", 
-                 feature = "NKG7") + NoLegend()
-
-
-
-
-
-
-
-
-
-scCustomize::Plot_Density_Custom(ts.immune.seurat,
-                                 features = "NKG7",
-                                 custom_palette = batlow.pal,
-                                 reduction = "X_umap", 
-                                 pt.size = 1)
-
-unique(ts.immune.seurat@meta.data$cell_ontology_class)
-Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$cell_ontology_class
-
-
-temp.seurat <- subset(ts.immune.seurat, idents = "nk cell")
-unique(temp.seurat@meta.data$free_annotation) # 147 levels
-
-
-VlnPlot_scCustom(temp.seurat, 
-                 pt.size = 0, 
-                 group.by = "organ_tissue", 
-                 feature = "NKG7") + NoLegend()
-
-
-
-
-DimPlot(ts.immune.seurat, 
-        group.by = "cell_ontology_class", 
-        pt.size = 1,
-        label = T,
-        reduction = "X_umap") + NoLegend()
-
-
-# quick vis dataset
-ts.immune.seurat %>% 
-  glimpse()
-
-
-# remove doublets 
-Idents(pbmc.seurat) <- pbmc.seurat@meta.data$celltype.l2
-
-pbmc.seurat <- subset(pbmc.seurat, idents = "Doublet", invert = TRUE)
-
-
-# set defaults
-DefaultAssay(pbmc.seurat) <- "SCT"
-Idents(pbmc.seurat) <- pbmc.seurat@meta.data$celltype.l1
-
-
-# create custom annotation of cell types 
-Bcells <- c("B intermediate lambda", "B naive kappa", "B intermediate kappa", "B memory kappa", "B naive lambda", "B memory lambda")
-plasma <- c("Plasma", "Plasmablast")
-nk.dim <- c(paste0("NK_", 1:4))
-treg <- c("Treg Naive", "Treg Memory")
-dnT <- c("dnT_1", "dnT_2")
-cDC2 <- c("cDC2_1", "cDC2_2", "ASDC_mDC")
-pDC <- c("ASDC_pDC", "pDC")
-gdT <- c("gdT_2", "gdT_3", "gdT_4") 
-cd4.cm <- c(paste0("CD4 TCM_", 1:3))
-cd4.em <- c(paste0("CD4 TEM_", 1:4))
-cd8.naive <- c("CD8 Naive", "CD8 Naive_2")
-cd8.em <- c(paste0("CD8 TEM_", 1:6))
-cd8.cm <- c(paste0("CD8 TCM_", 1:3))
-
-pbmc.seurat@meta.data <- pbmc.seurat@meta.data %>%
-  dplyr::mutate(custom_anno = case_when(celltype.l3 %in% Bcells ~ "B_cells", 
-                                        celltype.l3 %in% plasma ~ "Plasmablasts", 
-                                        celltype.l3 %in% nk.dim ~ "NK_Dim", 
-                                        celltype.l3 %in% treg ~ "Treg", 
-                                        celltype.l3 %in% dnT ~ "dnT", 
-                                        celltype.l3 %in% cDC2 ~ "cDC2", 
-                                        celltype.l3 %in% pDC ~ "pDC", 
-                                        celltype.l3 %in% gdT ~ "gdT", 
-                                        celltype.l3 %in% cd4.cm ~ "CD4_CM", 
-                                        celltype.l3 %in% cd4.em ~ "CD4_EM", 
-                                        celltype.l3 %in% cd8.naive ~ "CD8_Naive", 
-                                        celltype.l3 %in% cd8.em ~ "CD8_EM", 
-                                        celltype.l3 %in% cd8.cm ~ "CD8_CM", 
-                                        celltype.l3 == "gdT_1" ~ "gdT_V9D2",
-                                        TRUE ~ celltype.l3))
-
-# additional formatting of custom_anno
-pbmc.seurat@meta.data$custom_anno <- gsub(" ", "_", pbmc.seurat@meta.data$custom_anno)
-pbmc.seurat@meta.data$custom_anno <- gsub("^Platelet$", "Platelets", pbmc.seurat@meta.data$custom_anno)
-pbmc.seurat@meta.data$custom_anno <- gsub("Proliferating", "Prolif", pbmc.seurat@meta.data$custom_anno)
-pbmc.seurat@meta.data$custom_anno <- gsub("^NK_CD56bright$", "NK_Bright", pbmc.seurat@meta.data$custom_anno)
-
-
-# set levels for factor 
-cells.group.1 <- c("cDC1", "cDC2", "pDC", "CD14_Mono", "CD16_Mono", "Platelets", "Eryth", "HSPC", "B_cells", "Plasmablasts")
-cells.group.2 <- c("CD4_Naive", "CD4_CM", "CD4_EM", "CD4_CTL", "Treg")
-cells.group.3 <- c("dnT",  "CD8_Naive", "CD8_CM", "CD8_EM")
-cells.group.4 <- c("gdT", "gdT_V9D2", "MAIT")
-cells.group.5 <- c("NK_Prolif", "CD8_Prolif", "CD4_Prolif")
-cells.group.6 <- c("ILC", "NK_Bright", "NK_Dim")
-
-cell.groups <- list("Myeloid" = cells.group.1, 
-                    "CD4" = cells.group.2, 
-                    "CD8" = cells.group.3,
-                    "Innate_like" = cells.group.4, 
-                    "Prolif" = cells.group.5, 
-                    "Innate" = cells.group.6)
-
-pbmc.seurat@meta.data$custom_anno <- factor(pbmc.seurat@meta.data$custom_anno, levels = c(cell.groups$Myeloid, 
-                                                                                          cell.groups$CD4, 
-                                                                                          cell.groups$CD8, 
-                                                                                          cell.groups$Innate_like, 
-                                                                                          cell.groups$Prolif, 
-                                                                                          cell.groups$Innate))
-
-
-
-
-
+new_reduction <- CreateDimReducObject(embeddings = Embeddings(ts.immune.seurat, reduction = "umap.cca.sct"), key = "umap")
+ts.immune.seurat[["umap"]] <- new_reduction
 
 ```
 
-### Broad visualisation of dataset
-```{r Visualisation_of_PBMC_reference}
+## Visualise {.tabset}
 
-output.dir <- "results/figures/WNN_visualisations/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-
-# A few levels of data annotation exist 
-vars.plot <- c("celltype.l1", "celltype.l2", "celltype.l3", "custom_anno", "donor", "Phase", "time")
-
-for(i in seq_along(vars.plot)){
-  
-  print(
-    scCustomize::DimPlot_scCustom(pbmc.seurat, 
-                                  reduction = "wnn.umap",
-                                  group.by = vars.plot[i],
-                                  label = TRUE, 
-                                  label.size = 3, 
-                                  pt.size = 3,
-                                  raster = T,
-                                  raster.dpi = c(2400, 2400),
-                                  repel = TRUE) + 
-      NoLegend()
-  )
-  
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "wnnUMAP_", name.var, ".pdf"))
-  dev.off()
-  
-}
-
-
-```
-
-### Visualise Cytotoxic molecule expression
+### Featureplots, density plots and vlnplots across whole dataset
 ```{r vis_cytotoxic_across_whole_dataset}
 
-DefaultAssay(pbmc.seurat) <- "SCT"
+DefaultAssay(ts.immune.seurat) <- "alra"
 
-cts.genes <- grep("CTS.*", rownames(pbmc.seurat), value = T)
+cts.genes <- grep("CTS.*", rownames(ts.immune.seurat), value = T)
 goi <- c(cytotoxicity.markers, cts.genes)
-
-
 
 ######################
 # plot featureplots
 ######################
 
-output.dir <- "results/figures/FeaturePlots/"
+output.dir <- "results/figures/tabula_sapiens_FeaturePlots/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
@@ -382,16 +105,15 @@ if(!dir.exists(output.dir)){
 
 for(i in seq_along(goi)){
   print(
-    FeaturePlot(pbmc.seurat,
+    FeaturePlot(ts.immune.seurat,
                 features = goi[i],
-                reduction = "wnn.umap",
                 order = TRUE, 
                 pt.size = 1, 
                 raster = TRUE) + 
       NoLegend()
   )
   
-  dev.copy(pdf, paste0(output.dir, "wnnUMAP_FeaturePlot_", goi[i], ".pdf"))
+  dev.copy(pdf, paste0(output.dir, "UMAP_FeaturePlot_", goi[i], ".pdf"))
   dev.off()
   
 }
@@ -401,22 +123,21 @@ for(i in seq_along(goi)){
 # plot density plots
 ######################
 
-output.dir <- "results/figures/DensityPlots/"
+output.dir <- "results/figures/tabula_sapiens_DensityPlots/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
 
 for(i in seq_along(goi)){
   print(
-    scCustomize::Plot_Density_Custom(pbmc.seurat,
+    scCustomize::Plot_Density_Custom(ts.immune.seurat,
                                      features = goi[i],
                                      custom_palette = batlow.pal,
-                                     reduction = "wnn.umap", 
                                      pt.size = 1) + 
       NoLegend()
   )
   
-  dev.copy(pdf, paste0(output.dir, "wnnUMAP_DensityPlot_", goi[i], ".pdf"))
+  dev.copy(pdf, paste0(output.dir, "UMAP_DensityPlot_", goi[i], ".pdf"))
   dev.off()
   
 }
@@ -425,36 +146,204 @@ for(i in seq_along(goi)){
 ######################
 # Violin Plots
 ######################
-output.dir <- "results/figures/Stacked_VlnPlots/"
+output.dir <- "results/figures/tabula_sapiens_Stacked_VlnPlots/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
 
-vars.plot <- c("celltype.l1", "celltype.l2", "celltype.l3", "custom_anno")
+head(ts.immune.seurat@meta.data)
 
+vars.plot <- c("organ_tissue", "gender", "Grouped_l1", "Grouped_l2", "Grouped_l3", "Grouped_l4")
 
 for(i in seq_along(vars.plot)){
   print(
-    scCustomize::Stacked_VlnPlot(pbmc.seurat, 
+    scCustomize::Stacked_VlnPlot(ts.immune.seurat, 
                                  features = cytotoxicity.markers,
                                  pt.size = 0, 
                                  group.by = vars.plot[i],
+                                 raster = TRUE,
                                  x_lab_rotate = TRUE)
   )
   
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "Stacked_vlnplots_cytotoxicity_markers_", name.var, ".pdf"))
+  dev.copy(pdf, paste0(output.dir, "Stacked_vlnplots_cytotoxicity_markers_", vars.plot[i], ".pdf"))
   dev.off()
 }
 
 
-scCustomize::Stacked_VlnPlot(pbmc.seurat, 
-                             features = cts.genes,
+
+
+
+```
+
+
+### CD8, CD4, and NK cyto expression across immune specific organs - heatmaps and vlnplots
+```{r immune_specific_organs_cyto_expression}
+
+#################################
+# Immune specific organs 
+#################################
+
+DefaultAssay(ts.immune.seurat) <- "alra"
+
+output.dir <- "results/figures/tabula_sapiens_immune_specific_organs/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# identify immune organs
+immune.organs <- c("Spleen", "Thymus", "Salivary_Gland", "Lymph_Node", "Blood", "Bone_Marrow")
+
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
+
+# subset by immune organs
+immune.organ.seurat <- subset(ts.immune.seurat, idents = immune.organs)
+immune.organ.seurat # 173,153 cells
+
+table(immune.organ.seurat@meta.data$gender, immune.organ.seurat@meta.data$organ_tissue)
+table(immune.organ.seurat@meta.data$Grouped_l3, immune.organ.seurat@meta.data$organ_tissue)
+table(immune.organ.seurat@meta.data$Grouped_l2, immune.organ.seurat@meta.data$organ_tissue)
+table(immune.organ.seurat@meta.data$Grouped_l4, immune.organ.seurat@meta.data$organ_tissue)
+
+# at level 3 resolution 
+# iteratively investigate these cells across tissues
+cell.types <- c("NK", "CD8_Tcell", "CD4_Tcell")
+
+# set idents
+Idents(immune.organ.seurat) <- immune.organ.seurat@meta.data$Grouped_l3
+
+for(i in seq_along(cell.types)){
+  
+temp.seurat <- subset(immune.organ.seurat, idents = cell.types[i])
+
+pseudo.ts <- AggregateExpression(temp.seurat, 
+                                 assays = "SCT",
+                                 return.seurat = TRUE,
+                                 group.by = c("organ_tissue"))
+
+pseudo.ts <- ScaleData(pseudo.ts)
+
+head(pseudo.ts@meta.data)
+
+# set idents of pseudobulk object
+Idents(pseudo.ts) <- "orig.ident"
+
+
+# heatmap of cytotoxic markers
+print(
+DoHeatmap(pseudo.ts, 
+          features = cytotoxicity.markers, 
+          draw.lines = FALSE, 
+          raster = FALSE) + 
+  NoLegend() +  
+  scico::scale_fill_scico(palette = "batlow", 
+                              direction = 1, 
+                              na.value = "white")
+)
+
+dev.copy(pdf, paste0(output.dir, "Heatmap_cytotoxic_molecules_across_tissue_", cell.types[i], "_pseudobulk.pdf"))
+dev.off()
+
+
+DefaultAssay(temp.seurat) <- "alra"
+
+print(
+scCustomize::Stacked_VlnPlot(temp.seurat, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "organ_tissue",
+                             raster = FALSE,
+                             split.plot = FALSE,
+                             x_lab_rotate = TRUE)
+)
+
+dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplot_cytotoxic_molecules_across_tissue_", cell.types[i], ".pdf"))
+dev.off()
+
+
+}
+
+
+
+```
+
+### Gender differences
+```{r gender_differences}
+
+output.dir <- "results/figures/tabula_sapiens_gender_differences/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# identify immune organs
+immune.organs <- c("Spleen", "Thymus", "Salivary_Gland", "Lymph_Node", "Blood", "Bone_Marrow")
+
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
+
+# subset by immune organs
+immune.organ.seurat <- subset(ts.immune.seurat, idents = immune.organs)
+immune.organ.seurat # 173,153 cells
+
+table(immune.organ.seurat@meta.data$gender, immune.organ.seurat@meta.data$Grouped_l3)
+
+# specifically these cytotoxic subsets
+cell.types <- c("NK", "CD8_Tcell")
+
+# set idents
+Idents(immune.organ.seurat) <- immune.organ.seurat@meta.data$Grouped_l3
+
+temp.seurat <- subset(immune.organ.seurat, idents = cell.types)
+
+
+table(temp.seurat@meta.data$gender, temp.seurat@meta.data$Grouped_l3)
+
+
+DefaultAssay(temp.seurat) <- "alra"
+
+temp.seurat@meta.data$custom_anno <- paste0(temp.seurat@meta.data$Grouped_l3, "_", temp.seurat@meta.data$organ_tissue)
+
+
+scCustomize::Stacked_VlnPlot(temp.seurat, 
+                             features = cytotoxicity.markers,
                              pt.size = 0, 
                              group.by = "custom_anno",
+                             split.by = "gender",
+                             raster = TRUE,
+                             split.plot = FALSE,
                              x_lab_rotate = TRUE)
 
-dev.copy(pdf, paste0(output.dir, "Stacked_vlnplots_CTS_genes.pdf"))
+dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplot_cytotoxic_molecules_across_tissue_immune_relevant_tissue_and_select_celltypes_split_gender_female_blue.pdf"))
+dev.off()
+
+# pseudobulk for heatmap
+
+pseudo.ts <- AggregateExpression(temp.seurat, 
+                                 assays = "SCT",
+                                 return.seurat = TRUE,
+                                 group.by = c("Grouped_l3", "organ_tissue", "gender"))
+
+
+pseudo.ts <- ScaleData(pseudo.ts)
+
+head(pseudo.ts@meta.data)
+
+# set idents of pseudobulk object
+Idents(pseudo.ts) <- "orig.ident"
+
+
+# heatmap 
+DoHeatmap(pseudo.ts, 
+          features = cytotoxicity.markers, 
+          draw.lines = FALSE, 
+          raster = TRUE) + NoLegend() +  
+  scico::scale_fill_scico(palette = "batlow", 
+                              direction = 1, 
+                              na.value = "white")
+
+dev.copy(pdf, paste0(output.dir, "Heatmap_cytotoxic_molecules_across_celltype_tissue_gender_pseudobulk.pdf"))
 dev.off()
 
 
@@ -462,357 +351,45 @@ dev.off()
 
 
 
-######################
-# Heatmaps
-######################
-
-output.dir <- "results/figures/Heatmaps/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-
-vars.plot <- c("celltype.l1", "celltype.l2", "celltype.l3", "custom_anno")
-
-for(i in seq_along(vars.plot)){
-  Idents(pbmc.seurat) <- pbmc.seurat@meta.data[[vars.plot[i]]]
-  
-  average.seurat <- AverageExpression(pbmc.seurat, return.seurat = TRUE)
-  
-  print(
-    DoHeatmap(average.seurat, 
-              features = cytotoxicity.markers,
-              draw.lines = FALSE, 
-              raster = FALSE) + 
-      scico::scale_fill_scico(palette = "batlow", 
-                              direction = 1, 
-                              na.value = "white")
-  )
-  
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "Heatmap_cytotoxicity_markers_", name.var, ".pdf"))
-  dev.off()
-  
-  
-  print(
-    DoHeatmap(average.seurat, 
-              features = cts.genes,
-              draw.lines = FALSE, 
-              raster = FALSE) + 
-      scico::scale_fill_scico(palette = "batlow", 
-                              direction = 1, 
-                              na.value = "white")
-  )
-  
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "Heatmap_CTS_genes_", name.var, ".pdf"))
-  dev.off()
-  
-}
-
 ```
-
-## Imputation {.tabset}
-
-### Imputate gene expression
-```{r imputation}
-
-if(long.compute){
-  
-  output.dir <- "saves/"
-  if(!dir.exists(output.dir)){
-    dir.create(output.dir, 
-               recursive = T)}
-  
-  
-  # check that genes of interest are in variable genes list 
-  pbmc.seurat # 20,957 genes across 161,159 cells
-  
-  DefaultAssay(pbmc.seurat) <- "SCT"
-  
-  var.features <- VariableFeatures(pbmc.seurat)
-  
-  # are genes of interest in variable genes list 
-  x <- grep(paste0(all.markers, collapse = "|"), var.features, value = T)
-  print(x)
-  length(x)
-  length(all.markers)
-  
-  # yes all genes of interst are in variable features
-  
-  pbmc.seurat <- SeuratWrappers::RunALRA(pbmc.seurat, 
-                                         genes.use = var.features)
-  
-  # Export dataset for easy import
-  SeuratDisk::SaveH5Seurat(pbmc.seurat, "saves/pbmc_seurat_imputed.h5Seurat", overwrite = TRUE)
-  
-  DefaultAssay(pbmc.seurat) <- "SCT"
-  
-}
-
-
-```
-
-
-### Visualise Cytotoxic molecule expression -- imputed
-```{r vis_cytotoxic_across_whole_dataset_imputed}
-
-# set assay 
-DefaultAssay(pbmc.seurat) <- "alra"
-
-cts.genes <- grep("CTS.*", rownames(pbmc.seurat), value = T)
-goi <- c(cytotoxicity.markers, cts.genes)
+ 
 
 
 
-######################
-# plot featureplots
-######################
-
-output.dir <- "results/figures/FeaturePlots_imputed/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-
-for(i in seq_along(goi)){
-  print(
-    FeaturePlot(pbmc.seurat,
-                features = goi[i],
-                reduction = "wnn.umap",
-                order = TRUE, 
-                pt.size = 1, 
-                raster = TRUE) + 
-      NoLegend()
-  )
-  
-  dev.copy(pdf, paste0(output.dir, "wnnUMAP_FeaturePlot_", goi[i], ".pdf"))
-  dev.off()
-  
-}
-
-
-######################
-# plot density plots
-######################
-
-output.dir <- "results/figures/DensityPlots_imputed/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-for(i in seq_along(goi)){
-  print(
-    scCustomize::Plot_Density_Custom(pbmc.seurat,
-                                     features = goi[i],
-                                     custom_palette = batlow.pal,
-                                     reduction = "wnn.umap", 
-                                     pt.size = 1) + 
-      NoLegend()
-  )
-  
-  dev.copy(pdf, paste0(output.dir, "wnnUMAP_DensityPlot_", goi[i], ".pdf"))
-  dev.off()
-  
-}
-
-
-######################
-# Violin Plots
-######################
-output.dir <- "results/figures/Stacked_VlnPlots_imputed/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-vars.plot <- c("celltype.l1", "celltype.l2", "celltype.l3", "custom_anno")
-
-
-for(i in seq_along(vars.plot)){
-  print(
-    scCustomize::Stacked_VlnPlot(pbmc.seurat, 
-                                 features = cytotoxicity.markers,
-                                 pt.size = 0, 
-                                 group.by = vars.plot[i],
-                                 x_lab_rotate = TRUE)
-  )
-  
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "Stacked_vlnplots_cytotoxicity_markers_", name.var, ".pdf"))
-  dev.off()
-}
-
-
-scCustomize::Stacked_VlnPlot(pbmc.seurat, 
-                             features = cts.genes,
-                             pt.size = 0, 
-                             group.by = "custom_anno",
-                             x_lab_rotate = TRUE)
-
-dev.copy(pdf, paste0(output.dir, "Stacked_vlnplots_CTS_genes.pdf"))
-dev.off()
-
-
-
-
-
-
-######################
-# Heatmaps
-######################
-
-output.dir <- "results/figures/Heatmaps_imputed/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-
-vars.plot <- c("celltype.l1", "celltype.l2", "celltype.l3", "custom_anno")
-
-for(i in seq_along(vars.plot)){
-  Idents(pbmc.seurat) <- pbmc.seurat@meta.data[[vars.plot[i]]]
-  
-  average.seurat <- AverageExpression(pbmc.seurat, return.seurat = TRUE)
-  
-  print(
-    DoHeatmap(average.seurat, 
-              features = cytotoxicity.markers,
-              draw.lines = FALSE, 
-              raster = FALSE) + 
-      scico::scale_fill_scico(palette = "batlow", 
-                              direction = 1, 
-                              na.value = "white")
-  )
-  
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "Heatmap_cytotoxicity_markers_", name.var, ".pdf"))
-  dev.off()
-  
-  
-  print(
-    DoHeatmap(average.seurat, 
-              features = cts.genes,
-              draw.lines = FALSE, 
-              raster = FALSE) + 
-      scico::scale_fill_scico(palette = "batlow", 
-                              direction = 1, 
-                              na.value = "white")
-  )
-  
-  name.var <- gsub("\\.", "_", vars.plot[i])
-  dev.copy(pdf, paste0(output.dir, "Heatmap_CTS_genes_", name.var, ".pdf"))
-  dev.off()
-  
-}
-
-```
-
-### Subsetted vlnplots -- imputed
-```{r vlnplots_subsetted_imputed}
-
-# set assay 
-DefaultAssay(pbmc.seurat) <- "alra"
-
-goi <- c(cytotoxicity.markers)
-
-
-######################
-# Violin Plots
-######################
-output.dir <- "results/figures/Stacked_VlnPlots_imputed_fig_1/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-
-for(i in 1:length(cell.groups)){
-  Idents(pbmc.seurat) <- pbmc.seurat@meta.data$custom_anno
-  temp.seurat <- subset(pbmc.seurat, idents = cell.groups[[i]])
-  
-  p1 <- scCustomize::Stacked_VlnPlot(temp.seurat, 
-                                     features = goi,
-                                     pt.size = 0, 
-                                     group.by = "custom_anno",
-                                     x_lab_rotate = 90) 
-  
-  for(j in 1:length(p1)){
-    p1[[j]] <- p1[[j]] + theme(
-      plot.margin = margin(t = 0,
-                           r = 10,
-                           b = 0,
-                           l = 0, unit = "cm")
-    )
-  }
-  
-  print(p1)
-  
-  dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplots_",  names(cell.groups)[i], "group_cytotoxicity_imputed_.pdf"))
-  dev.off()
-}
-
-
-```
-
-
-### Module score for cytotoxicity & Density plot
-```{r cytotoxicity_and_density_plot}
-
-DefaultAssay(pbmc.seurat) <- "SCT"
-
-pbmc.seurat <- AddModuleScore(pbmc.seurat,
-                              features = list(cytotoxicity.markers),
-                              name = "Cytotoxicity_all")
-
-
-######################
-# plot density plots
-######################
-
-output.dir <- "results/figures/Fig_1/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-scCustomize::Plot_Density_Custom(pbmc.seurat,
-                                 features = "Cytotoxicity_all1",
-                                 custom_palette = rev(batlow.pal),
-                                 reduction = "wnn.umap", 
-                                 pt.size = 1) + 
-  NoLegend()
-
-dev.copy(pdf, paste0(output.dir, "wnnUMAP_DensityPlot_cytotoxicity_allmarkers.pdf"))
-dev.off()
-
-VlnPlot_scCustom(pbmc.seurat,
-                 features = "Cytotoxicity_all1",
-                 pt.size = 0,
-                 group.by = "custom_anno",
-                 sort = "increasing",
-                 log = F) + NoLegend()
-
-
-
-```
+## Cytotoxicity module score & Correlation analysis {.tabset}
 
 
 ### Correlation scatters
 ```{r correlation_scatter}
 
-output.dir <- "results/figures/Correlation_scatter/"
+output.dir <- "results/figures/tabula_sapiens_Correlation_scatter/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
 
 
 
+DefaultAssay(ts.immune.seurat) <- "SCT"
 
-DefaultAssay(pbmc.seurat) <- "SCT"
+# just NK and CD8 T cells
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$Grouped_l3
+unique(Idents(ts.immune.seurat))
 
-avg.seurat <- AverageExpression(pbmc.seurat, 
-                                group.by = "custom_anno",
-                                return.seurat = TRUE)
+# subset by immune organs
+NK.seurat <- subset(ts.immune.seurat, idents = c("NK", "CD8_Tcell"))
+NK.seurat # 33,467 cells
+ 
 
 
+pseudo.ts <- AggregateExpression(NK.seurat, 
+                                 assays = "SCT",
+                                 return.seurat = TRUE,
+                                 group.by = c("Grouped_l3", "organ_tissue"))
+
+
+Idents(pseudo.ts) <- pseudo.ts@meta.data$orig.ident
+length(unique(Idents(pseudo.ts))) # 31 classifications
 
 
 goi <- list()
@@ -828,20 +405,21 @@ names(goi)[length(goi)] <- "Full_cytotoxicity_sig"
 
 
 
-avg.seurat <- AddModuleScore(avg.seurat,
+pseudo.ts <- AddModuleScore(pseudo.ts,
                              features = goi, 
                              name = names(goi))
 
-end.point <- length(colnames(avg.seurat@meta.data))
+
+end.point <- length(colnames(pseudo.ts@meta.data))
 start.point <- end.point-length(goi)
 start.point <- start.point + 1
-colnames(avg.seurat@meta.data)[start.point:end.point]
+colnames(pseudo.ts@meta.data)[start.point:end.point]
 
 
 library(stringr)
-string.var <- colnames(avg.seurat@meta.data)[start.point:end.point]
+string.var <- colnames(pseudo.ts@meta.data)[start.point:end.point]
 new_string <- str_remove(string.var, ".$")
-colnames(avg.seurat@meta.data)[start.point:end.point] <- new_string
+colnames(pseudo.ts@meta.data)[start.point:end.point] <- new_string
 
 
 for(i in seq_along(goi)){
@@ -851,11 +429,13 @@ for(i in seq_along(goi)){
   feature.2.var <- gsub("cytotoxicity_minus_", "", feature.1.var)
   
   print(
-    FeatureScatter(avg.seurat, 
+    FeatureScatter(pseudo.ts, 
                    feature1 = feature.1.var,
                    feature2 = feature.2.var,
-                   pt.size = 3,
-                   span = TRUE)
+                   pt.size = 5,
+                   span = TRUE) + 
+      scale_x_continuous(limits = c(-0.5, 1.5)) +
+      NoLegend()
   )
   
   dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, ".pdf"))
@@ -863,148 +443,298 @@ for(i in seq_along(goi)){
 }
 
 
+FeatureScatter(pseudo.ts, 
+               feature1 = feature.1.var,
+               feature2 = feature.2.var,
+               pt.size = 5,
+               span = TRUE)
+dev.copy(pdf, paste0(output.dir, "cor_scatter_legend.pdf"))
+dev.off()
+
+```
+
+
+### Thymic T-cell development and Treg across tissues
+```{r Thymic_Tcell_Development_Treg_across_tissues}
+
+output.dir <- "results/figures/tabula_sapiens_thymic_tcell_development/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# subset for thymus
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
+temp.seurat <- subset(ts.immune.seurat, idents = "Thymus")
+
+# subset for thymic t-cell subsets
+Idents(temp.seurat) <- temp.seurat@meta.data$Grouped_l4
+table(temp.seurat@meta.data$Grouped_l4)
+
+temp.seurat <- subset(temp.seurat, idents = c("DN1", "DN2", "DN3", "CD4_Tcell", "CD8_innate_like_thymic_resident", "CD8_Tcell", "TFH", "Thymocyte", "Treg"))
+
+# plot 
+Stacked_VlnPlot(temp.seurat, 
+                cytotoxicity.markers, 
+                group.by = "Grouped_l4",
+                pt.size = 0, 
+                assay = "alra") + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "stacked_vln_thymic_only_Tcell_development.pdf"))
+dev.off()
+
+# subset for thymic DN t-cell subsets
+Idents(temp.seurat) <- temp.seurat@meta.data$Grouped_l4
+table(temp.seurat@meta.data$Grouped_l4)
+
+temp.seurat <- subset(temp.seurat, idents = c("DN1", "DN2", "DN3"))
+
+# plot 
+Stacked_VlnPlot(temp.seurat, 
+                cytotoxicity.markers, 
+                group.by = "Grouped_l4",
+                pt.size = 0, 
+                assay = "alra") + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "stacked_vln_thymic_only_Tcell_development_DN_subsets.pdf"))
+dev.off()
+
+####################
+# Treg across tissue
+####################
+
+output.dir <- "results/figures/tabula_sapiens_Treg_across_tissue/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+# subset for DN t-cell stages
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$Grouped_l4
+
+temp.seurat <- subset(ts.immune.seurat, idents = c("Treg"))
+
+table(temp.seurat@meta.data$Grouped_l4, temp.seurat@meta.data$organ_tissue)
+
+Stacked_VlnPlot(temp.seurat, 
+                cytotoxicity.markers,
+                group.by = "organ_tissue", 
+                pt.size = 0,
+                assay = "alra") + NoLegend()
+
+
+dev.copy(pdf, paste0(output.dir, "stacked_vln_treg_expression_across_tissue.pdf"))
+dev.off()
+
+
+
 ```
 
 
 
 
 
-### analysed up to here
-
-
-### Subsettting dataset for NK, CD8, and CD4 subsets and perform dim reduction 
-```{r subsetting_dataset}
-
-
-# Set up dataset
-DefaultAssay(reference) <- "SCT"
-Idents(reference) <- reference@meta.data$celltype.l1
-unique(Idents(reference))
-
-
-# Subset dataset
-#CD8.seurat <- subset(reference, idents = "CD8 T")
-#CD4.seurat <- subset(reference, idents = "CD4 T")
-#NK.seurat <- subset(reference, idents = "NK")
-
-# Make a list of seurat objects
-#seurat.list <- c(CD8.seurat, CD4.seurat, NK.seurat)
-#names(seurat.list) <- c("CD8_cells", "CD4_cells", "NK_cells")
-
-NK.T.seurat <- subset(reference, idents = c("CD8 T", "CD4 T", "NK"))
-
-seurat.list <- c(NK.T.seurat)
-names(seurat.list) <- c("NK_T_cells")
-
-rm(NK.T.seurat)
-
-
-# remove single seurat objects
-#rm(CD8.seurat, CD4.seurat, NK.seurat)
 
 
 
 
-# Re-normalise
-seurat.list <- lapply(X = seurat.list, 
-                      FUN = SCTransform, 
-                      assay = "SCT",
-                      method = "glmGamPoi", 
-                      verbose = TRUE) 
+# not written below here
+### cytotoxic molecule expression for celltypes across tissues
+```{r cytotoxic_expression_across_tissues}
+
+DefaultAssay(ts.immune.seurat) <- "alra"
 
 
-# Scale and Calculate PCA - RNA
-for(i in seq_along(seurat.list)){
-  seurat.list[[i]] <- seurat.list[[i]] %>%
-    NormalizeData() %>%
-    FindVariableFeatures() %>% 
-    ScaleData() %>% 
-    RunPCA()
-}
+
+output.dir <- "results/figures/across_tissues/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
 
 
 
 
+# same cell across tissue
+
+vars.plot <- c("organ_tissue", "gender", "Grouped_l1", "Grouped_l2", "Grouped_l3", "Grouped_l4")
+
+length(unique(ts.immune.seurat@meta.data$organ_tissue)) # 23
+length(unique(ts.immune.seurat@meta.data$donor)) # 12
+
+length(unique(ts.immune.seurat@meta.data$Grouped_l1)) # 4
+length(unique(ts.immune.seurat@meta.data$Grouped_l2)) #15
+length(unique(ts.immune.seurat@meta.data$Grouped_l3)) # 29
+length(unique(ts.immune.seurat@meta.data$Grouped_l4)) # 67
 
 
-# Normalise, Scale and Calculate PCA - ADT
+table(ts.immune.seurat@meta.data$donor, ts.immune.seurat@meta.data$organ_tissue)
+table(ts.immune.seurat@meta.data$donor, ts.immune.seurat@meta.data$Grouped_l3)
+table(ts.immune.seurat@meta.data$Grouped_l3, ts.immune.seurat@meta.data$organ_tissue)
 
-for(i in seq_along(seurat.list)){
-  
-  DefaultAssay(seurat.list[[i]]) <- 'ADT'
-  
-  # we will use all ADT features for dimensional reduction
-  # we set a dimensional reduction name to avoid overwriting the 
-  VariableFeatures(seurat.list[[i]]) <- rownames(seurat.list[[i]][["ADT"]])
-  
-  seurat.list[[i]] <- seurat.list[[i]] %>%
-    NormalizeData(normalization.method = 'CLR', 
-                  margin = 2) %>% 
-    ScaleData() %>% 
-    RunPCA(reduction.name = 'apca')
-}
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$Grouped_l4
+unique(Idents(ts.immune.seurat))
 
+temp.seurat <- subset(ts.immune.seurat, idents = "CD8_Tcell")
+temp.seurat
+table(temp.seurat@meta.data$gender, temp.seurat@meta.data$organ_tissue)
 
-seurat.list <- lapply(X = seurat.list, 
-                      FUN = FindMultiModalNeighbors, 
-                      reduction.list = list("pca", "apca"),
-                      dims.list = list(1:30, 1:18), 
-                      modality.weight.name = "Multi.weight") 
-
-seurat.list <- lapply(X = seurat.list, 
-                      FUN = RunSPCA, 
-                      assay = 'SCT',
-                      graph = 'wsnn') 
+pseudo.ts <- AggregateExpression(temp.seurat, 
+                                 assays = "SCT",
+                                 return.seurat = TRUE,
+                                 group.by = c("organ_tissue"))
 
 
-seurat.list <- lapply(X = seurat.list, 
-                      FUN = RunUMAP, 
-                      reduction = 'spca', 
-                      dims = 1:50) 
+pseudo.ts <- ScaleData(pseudo.ts)
+
+head(pseudo.ts@meta.data)
+
+# set idents of pseudobulk object
+Idents(pseudo.ts) <- "orig.ident"
 
 
+# heatmap of top 10 degs per cluster
+DoHeatmap(pseudo.ts, 
+          features = cytotoxicity.markers, 
+          draw.lines = FALSE, 
+          raster = TRUE) + NoLegend() +  
+  scico::scale_fill_scico(palette = "batlow", 
+                              direction = 1, 
+                              na.value = "white")
+
+dev.copy(pdf, paste0(output.dir, "Heatmap_cytotoxic_molecules_across_tissue_pseudobulk.pdf"))
+dev.off()
+
+DefaultAssay(temp.seurat) <- "alra"
 
 
-DimPlot(seurat.list[[1]], group.by = "celltype.l1", reduction = "umap") 
-
-DimPlot(seurat.list[[1]], group.by = "donor", reduction = "umap") 
-DimPlot(seurat.list[[1]], group.by = "donor", reduction = "wnn.umap") 
-DimPlot(seurat.list[[1]], group.by = "celltype.l2", reduction = "umap") 
-
-
-
-DimPlot(object = NK.seurat, 
-        reduction = "wnn.umap",
-        group.by = "celltype.l1",
-        label = TRUE, 
-        label.size = 3, 
-        repel = TRUE) + 
-  NoLegend()
+scCustomize::Stacked_VlnPlot(temp.seurat, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "organ_tissue",
+                             #split.by = "gender",
+                             raster = TRUE,
+                             split.plot = FALSE,
+                             x_lab_rotate = TRUE)
 
 
-
-
-
-
-
-
-
-DimPlot(reference, group.by = "donor", reduction = "umap") 
-DimPlot(reference, group.by = "celltype.l2", reduction = "umap") 
-
-
-
-
-SaveH5Seurat(temp.seurat, 
-             filename = "Exported_RDS_files/pbmc_multimodal_CD8_cells_only.h5seurat",
-             overwrite = TRUE)
-
-# remove data
-rm(temp.seurat)
 
 
 
 ```
+ 
+
+
+
+
+
+
+### Broad overview of dataset
+```{r dataset_overview}
+
+
+output.dir <- "results/data_overview/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+
+library(ggplot2)
+
+
+head(ts.immune.seurat@meta.data)
+
+
+if(do.plot){
+  
+  vars.plot <- c("donor", "organ_tissue", "gender", "anatomical_information", "Grouped_l1", "Grouped_l2", "Grouped_l3", "Grouped_l4", "seurat_clusters")
+  
+  for(i in seq_along(vars.plot)){
+    
+    print(scCustomize::DimPlot_scCustom(ts.immune.seurat, 
+                                        reduction = "umap.cca.sct", 
+                                        group.by = vars.plot[i], 
+                                        pt.size = 1,
+                                        label = TRUE,
+                                        figure_plot = TRUE)
+    )
+    
+    
+    dev.copy(pdf, paste0(output.dir, "UMAP_integrated_tabula_sapiens_dataset_grouped_by_", vars.plot[i], ".pdf"))
+    dev.off()
+    
+  }
+}
+
+
+################################################
+# plot some distribution statistics 
+################################################
+
+
+# gender distribution
+x <- table(ts.immune.seurat@meta.data$gender)
+y <- x/sum(x)
+y <- y*100
+
+y <- as.data.frame(y)
+
+ggplot(y) +
+  aes(x = Var1, y = Freq, fill = Var1) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  labs(y = "Freq of sequenced cells", x = "Gender") +
+  theme_minimal() +
+  ylim(0, 100)
+
+dev.copy(pdf, paste0(output.dir, "Frequency_of_sequenced_cells_by_Gender.pdf"))
+dev.off()
+
+
+# Donor distribution
+x <- table(ts.immune.seurat@meta.data$donor)
+y <- x/sum(x)
+y <- y*100
+
+y <- as.data.frame(y)
+
+ggplot(y) +
+  aes(x = Var1, y = Freq, fill = Var1) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  labs(y = "Freq of sequenced cells", x = "Donor") +
+  theme_minimal() +
+  ylim(0, 100) + 
+  theme(legend.position = "none")
+
+
+dev.copy(pdf, paste0(output.dir, "Frequency_of_sequenced_cells_by_Donor.pdf"))
+dev.off()
+
+
+# Tissue distribution
+x <- table(ts.immune.seurat@meta.data$organ_tissue)
+y <- x/sum(x)
+y <- y*100
+
+y <- as.data.frame(y)
+
+ggplot(y) +
+  aes(x = Var1, y = Freq, fill = Var1) +
+  geom_col() +
+  scale_fill_hue(direction = 1) +
+  labs(y = "Freq of sequenced cells", x = "Tissue") +
+  theme_minimal() +
+  ylim(0, 25) + 
+  theme(legend.position = "none")
+
+dev.copy(pdf, paste0(output.dir, "Frequency_of_sequenced_cells_by_Tissue.pdf"))
+dev.off()
+
+
+```
+
+
+
 
 
 

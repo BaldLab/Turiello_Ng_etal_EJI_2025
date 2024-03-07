@@ -1,0 +1,841 @@
+---
+title: "TICAtlas_dataset"
+author: "Dillon Corvino"
+date: "15/02/2024"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: united
+    highlight: tango
+    df_print: paged
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+Built with R version `r getRversion()`
+
+## Setup {.tabset}
+
+### Dataset information
+```{r Dataset_Info}
+
+
+
+```
+
+### Environment
+```{r setup}
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,  
+  eval = TRUE, 
+  tidy = TRUE
+)
+
+knitr::opts_knit$set(
+  root.dir = "../"
+)
+
+
+# Environment Set up
+rm(list = ls()) #Clean workspace
+cat("\014")     #Clean Console
+gc() # Free memory
+
+# pipeline variables
+long.compute <- TRUE
+do.plot <- TRUE
+
+# Establish working directory
+library("rstudioapi")
+
+# Set working directory to source file location
+setwd(dirname(getActiveDocumentContext()$path))
+setwd("..")
+
+# Create output directories & load custom functions & colour scheme
+source("scripts/Setup.R", local = knitr::knit_global())
+
+
+# note to use sccus and density plots with nebulosa need to downgrade ggplot 
+#remotes::install_version("ggplot2", version = "3.4.4")
+
+
+```
+
+
+
+## Loading dataset {.tabset}
+
+### load dataset
+```{r load_dataset}
+
+TICAtlas <- LoadSeuratRds("data/TICAtlas.rds")
+
+TICAtlas # 92,256 features across 317,111 cells (RNA assay)
+
+head(TICAtlas@meta.data)
+
+# set object defaults 
+DefaultAssay(TICAtlas) <- "RNA"
+Idents(TICAtlas) <- TICAtlas@meta.data$subtype
+
+# filter out OC subtype 
+y <- TICAtlas@meta.data$subtype
+table(y)/1000
+# OC has lowest number of cells and therefore downstream analysis is highly variable just due to low number 
+# remove OC from dataset
+
+# remove OC subtype
+Idents(TICAtlas) <- TICAtlas@meta.data$subtype
+TICAtlas <- subset(TICAtlas, idents = "OC", invert = T)
+y <- TICAtlas@meta.data$subtype
+table(y)/1000
+
+
+```
+
+
+
+### Dataset overview
+```{r dataset_overview}
+
+
+output.dir <- "results/figures/TICAtlas_overview/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+DefaultAssay(TICAtlas) <- "RNA"
+
+
+
+TICAtlas@meta.data
+
+DimPlot_scCustom(TICAtlas,
+                 pt.size = 2,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "cell_type") + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_grouped_by_celltype.pdf"))
+dev.off()
+
+
+DimPlot_scCustom(TICAtlas,
+                 pt.size = 2,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "subtype") + NoLegend()
+
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_grouped_by_subtype.pdf"))
+dev.off()
+
+
+DimPlot_scCustom(TICAtlas,
+                 pt.size = 2,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "subtype")
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_grouped_by_subtype_definition.pdf"))
+dev.off()
+
+
+DimPlot_scCustom(TICAtlas,
+                 pt.size = 2,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "cell_type")
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_grouped_by_cell_type_definition.pdf"))
+dev.off()
+
+
+```
+
+
+
+### Cytotoxicity signature 
+```{r cytotoxicity_signature}
+
+###########################
+# cytotoxicity signature 
+###########################
+
+
+output.dir <- "results/figures/TICAtlas_cytotoxicity/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+DefaultAssay(TICAtlas) <- "RNA"
+
+TICAtlas <- AddModuleScore(TICAtlas, 
+                           features = list(cytotoxicity = cytotoxicity.markers), 
+                           name = "Cytotoxicity")
+
+
+TICAtlas@meta.data$Cytotoxicity1
+
+# sorted vln plot of cytotoxicity 
+VlnPlot_scCustom(TICAtlas, 
+                 feature = "Cytotoxicity1", 
+                 sort = TRUE,
+                 pt.size = 0) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_vln_plot_cytotoxicity_signature.pdf"))
+dev.off()
+
+
+
+# density plot of cytotoxicity singature 
+
+scCustomize::Plot_Density_Custom(TICAtlas, 
+                                 features = "Cytotoxicity1", 
+                                 custom_palette = batlow.pal)
+
+ggsave(paste0(output.dir, "TICAtlas_density_plot_cytotoxicity_signature.tiff"), width = 12, height = 12, units = "in", device = "tiff", dpi = 320)
+
+#dev.copy(pdf, paste0(output.dir, "TICAtlas_density_plot_cytotoxicity_signature.pdf"))
+#dev.off()
+
+```
+
+### Correlation scatters
+```{r correlation_scatter}
+
+output.dir <- "results/figures/TICAtlas_Correlation_scatter/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+DefaultAssay(TICAtlas) <- "integrated"
+Idents(TICAtlas) <- TICAtlas@meta.data$subtype
+
+pseudo.seurat <- AggregateExpression(TICAtlas, 
+                                     group.by = c("cell_type", "subtype"),
+                                     return.seurat = TRUE)
+
+goi <- list()
+
+for(i in seq_along(cytotoxicity.markers)){
+  goi[[i]] <- cytotoxicity.markers[-i]
+  name.var <- paste0("cytotoxicity_minus_", cytotoxicity.markers[i])
+  names(goi)[i] <- name.var
+}
+
+goi[[length(goi)+1]] <- cytotoxicity.markers
+names(goi)[length(goi)] <- "Full_cytotoxicity_sig"
+
+
+
+pseudo.seurat <- AddModuleScore(pseudo.seurat,
+                                features = goi, 
+                                name = names(goi))
+
+
+end.point <- length(colnames(pseudo.seurat@meta.data))
+start.point <- end.point-length(goi)
+start.point <- start.point + 1
+colnames(pseudo.seurat@meta.data)[start.point:end.point]
+
+
+library(stringr)
+string.var <- colnames(pseudo.seurat@meta.data)[start.point:end.point]
+new_string <- str_remove(string.var, ".$")
+colnames(pseudo.seurat@meta.data)[start.point:end.point] <- new_string
+
+
+for(i in seq_along(goi)){
+  if(names(goi)[i] == "Full_cytotoxicity_sig"){next}
+  
+  feature.1.var <- names(goi)[i]
+  feature.2.var <- gsub("cytotoxicity_minus_", "", feature.1.var)
+  
+  print(
+    FeatureScatter(pseudo.seurat, 
+                   feature1 = feature.1.var,
+                   feature2 = feature.2.var,
+                   pt.size = 5,
+                   span = TRUE) + scale_x_continuous(limits = c(-1, 2.5)) + NoLegend()
+  )
+  
+  dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, ".pdf"))
+  dev.off()
+}
+
+
+
+
+
+
+
+# cor score without pDC for GZMB sig 
+Idents(pseudo.seurat) <- pseudo.seurat@meta.data$cell_type
+temp.seurat <- subset(pseudo.seurat, idents = "pDC", invert = T)
+Idents(temp.seurat) <- temp.seurat@meta.data$orig.ident
+
+FeatureScatter(temp.seurat, 
+               feature1 = "cytotoxicity_minus_GZMB",
+               feature2 = "GZMB",
+               pt.size = 5,
+               span = TRUE) + scale_x_continuous(limits = c(-1, 2.5)) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Cor_scatter_Cytotoxicity_minus_GZMB_vs_GZMB_without_pDC_subset.pdf"))
+dev.off()
+
+
+
+```
+
+
+
+### GZM expression in regulatory T-cells
+```{r regulatory_tcells}
+
+
+output.dir <- "results/figures/TICAtlas_cytotoxicity/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# tregs 
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+treg.seurat <- subset(TICAtlas, idents = "Regulatory T cells")
+
+
+
+
+# vis cytotoxicity across celltypes 
+scCustomize::Stacked_VlnPlot(treg.seurat, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "subtype",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_vlnplot_regulatory_tcells.pdf"))
+dev.off()
+
+```
+ 
+### subset NK cells
+```{r subset_NK_cells}
+
+
+output.dir <- "results/figures/TICAtlas_NK_cells/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+
+DefaultAssay(TICAtlas) <- "integrated"
+
+
+# isolate just NK cells 
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+unique(TICAtlas@meta.data$cell_type)
+
+NK.dataset <- subset(TICAtlas, idents = "NK")
+NK.dataset@meta.data$subtype
+
+# rescale data, and do dim reduction 
+NK.dataset <- ScaleData(NK.dataset) %>%
+  FindVariableFeatures() %>%
+  RunPCA() %>%
+  RunUMAP(dims = 1:10) %>%
+  FindClusters()
+
+
+# need to add integration step??
+
+DimPlot_scCustom(NK.dataset,
+                 pt.size = 5,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "subtype") 
+
+
+
+DefaultAssay(NK.dataset) <- "RNA"
+
+# add signature 
+NK.dataset <- AddModuleScore(NK.dataset, 
+                             features = list(cytotoxicity = cytotoxicity.markers), 
+                             name = "Cytotoxicity")
+
+
+
+
+scCustomize::Plot_Density_Custom(NK.dataset, 
+                                 features = "Cytotoxicity1", 
+                                 custom_palette = batlow.pal)
+
+
+
+scCustomize::Plot_Density_Custom(NK.dataset, 
+                                 features = c("GZMK", "NKG7"), 
+                                 custom_palette = batlow.pal)
+
+
+
+
+scCustomize::Plot_Density_Custom(NK.dataset, 
+                                 features = c("GZMK", "GZMB"), 
+                                 custom_palette = batlow.pal)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# note doesnt change if integrated or RNA assay is used
+DefaultAssay(NK.dataset) <- "integrated"
+Idents(NK.dataset) <- NK.dataset@meta.data$subtype
+NK.dataset@meta.data$patient
+pseudo.seurat <- AggregateExpression(NK.dataset, 
+                                     group.by = c("subtype", "patient"),
+                                     return.seurat = TRUE)
+
+goi <- list()
+
+for(i in seq_along(cytotoxicity.markers)){
+  goi[[i]] <- cytotoxicity.markers[-i]
+  name.var <- paste0("cytotoxicity_minus_", cytotoxicity.markers[i])
+  names(goi)[i] <- name.var
+}
+
+goi[[length(goi)+1]] <- cytotoxicity.markers
+names(goi)[length(goi)] <- "Full_cytotoxicity_sig"
+
+
+
+pseudo.seurat <- AddModuleScore(pseudo.seurat,
+                                features = goi, 
+                                name = names(goi))
+
+
+end.point <- length(colnames(pseudo.seurat@meta.data))
+start.point <- end.point-length(goi)
+start.point <- start.point + 1
+colnames(pseudo.seurat@meta.data)[start.point:end.point]
+
+
+library(stringr)
+string.var <- colnames(pseudo.seurat@meta.data)[start.point:end.point]
+new_string <- str_remove(string.var, ".$")
+colnames(pseudo.seurat@meta.data)[start.point:end.point] <- new_string
+
+
+for(i in seq_along(goi)){
+  if(names(goi)[i] == "Full_cytotoxicity_sig"){next}
+  
+  feature.1.var <- names(goi)[i]
+  feature.2.var <- gsub("cytotoxicity_minus_", "", feature.1.var)
+  
+  print(
+    FeatureScatter(pseudo.seurat, 
+                   feature1 = feature.1.var,
+                   feature2 = feature.2.var,
+                   pt.size = 5,
+                   span = TRUE) + scale_x_continuous(limits = c(0, 3)) + 
+      NoLegend()
+  )
+  
+  dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, ".pdf"))
+  dev.off()
+}
+
+
+
+```
+
+
+
+
+```{r}
+
+
+
+
+
+
+
+#dev.copy(pdf, paste0(output.dir, "TICAtlas_density_plot_cytotoxicity_signature.pdf"))
+#dev.off()
+
+
+
+# vis cytotoxicity across celltypes 
+scCustomize::Stacked_VlnPlot(TICAtlas, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "cell_type",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Stacked_vlnplot_cytotoxicity_across_celltypes.pdf"))
+dev.off()
+
+
+
+
+scCustomize::Stacked_VlnPlot(NK.dataset, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "subtype",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Stacked_vlnplot_cytotoxicity_NK_cells_only_across_disease.pdf"))
+dev.off()
+
+
+## Question 
+# some disease have high K expression, are these just high CD56Bright infiltrated tumors 
+# BCC, EA, HCC, ICC, SCC, UM, high GZMK
+
+scCustomize::Stacked_VlnPlot(NK.dataset, 
+                             features = c("GZMK", "NCAM1", "FCGR3A", "CD7", "IL7R"),
+                             pt.size = 0, 
+                             group.by = "subtype",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+
+
+
+DimPlot_scCustom(TICAtlas, pt.size = 1) + NoLegend()
+scCustomize::Plot_Density_Custom(TICAtlas, features = "GZMK")
+
+#remotes::install_version("ggplot2", version = "3.4.4")
+library(scCustomize)
+DimPlot_scCustom(NK.dataset)
+
+
+scCustomize::FeaturePlot_scCustom(NK.dataset, 
+                                  features = c("GZMK", "FCGR3A"))
+
+
+scCustomize::Plot_Density_Custom(NK.dataset, 
+                                 features = c("GZMK", "FCGR3A"))
+
+
+
+
+# looks like gzmk correlates with cd16- nk infiltration 
+
+#
+
+
+
+
+
+# co-expression analysis, just NK cells 
+# isolate just NK cells 
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+unique(TICAtlas@meta.data$cell_type)
+NK.dataset <- subset(TICAtlas, idents = "NK")
+
+NK.dataset <- ScaleData(NK.dataset)
+
+
+DoHeatmap(NK.dataset, 
+          features = cytotoxicity.markers)
+
+# extract values 
+scale_values <- FetchData(NK.dataset, vars = cytotoxicity.markers, layer = "scale.data")
+
+
+
+
+
+
+# classify cells as pos
+
+theshold.val = 1
+for(i in seq_along(cytotoxicity.markers)){
+  print(
+    scCustomize::VlnPlot_scCustom(TICAtlas, 
+                                  feature = cytotoxicity.markers[i], 
+                                  pt.size = 0, 
+                                  group.by = "cell_type") + 
+      NoLegend() +
+      geom_hline(yintercept = theshold.val, 
+                 linetype = "dashed",
+                 color = "red")
+  )
+}
+
+
+#dev.copy(pdf, paste0(output.dir, "Threshold_val_determination_", cytotoxicity.markers[i], ".pdf"))
+#dev.off()
+
+
+
+
+
+# quantify granzyme expression
+for(i in seq_along(cytotoxicity.markers)){
+  logic.vec <- rownames(TICAtlas@assays$RNA@data) == cytotoxicity.markers[i]
+  goi.expression <- TICAtlas@assays$RNA@data[logic.vec, ]
+  expression.logic <- goi.expression > theshold.val
+  sum(names(expression.logic) != rownames(TICAtlas@meta.data)) # same order, nice and easy 
+  
+  TICAtlas@meta.data[[paste0(cytotoxicity.markers[i], "_status")]] <- expression.logic
+  
+}
+
+
+
+
+# extract and format metadata
+meta.data <- TICAtlas@meta.data %>%
+  dplyr::filter(cell_type == "NK") %>%
+  dplyr::select(ends_with("_status"))
+
+input_data <- data.frame(lapply(meta.data, as.integer))
+
+rownames(input_data) <- rownames(meta.data)
+
+colnames(input_data) <- gsub("_status", "", colnames(input_data))
+
+
+
+
+
+
+library(gplots)
+
+# Example data frame
+df <- data.frame(
+  Cell1 = c(0, 1, 0, 1),
+  Cell2 = c(1, 1, 0, 0),
+  Cell3 = c(0, 0, 1, 1)
+)
+df <- t(df)
+
+
+temp.df <- input_data[1:1000, ]
+
+
+# Create heatmap
+heatmap.2(as.matrix(temp.df),   # Convert data frame to matrix
+          trace = "none",   # Do not display trace lines
+          col = c("gray", "blue"),  # Define colors for 0 and 1 values
+          scale = "none",   # Do not scale rows or columns
+          dendrogram = "row",  # Do not draw dendrograms
+          Rowv = TRUE,     # Do not cluster rows
+          Colv = FALSE,     # Do not cluster columns
+          margins = c(10, 10),  # Adjust margins for row and column labels
+          labRow = FALSE,
+          xlab = "Cyto Markers",
+          ylab = "cells",
+          main = "test",
+          distfun = function(x){dist(x , method = "euclidean")},
+          hclustfun = function(x){hclust(x , method = "ward.D2")}
+)
+
+
+
+
+# NK heamtap scaled 
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+NK.dataset <- subset(TICAtlas, idents = "NK")
+
+NK.dataset <- ScaleData(NK.dataset)
+
+
+# extract values 
+scale_values <- FetchData(NK.dataset, vars = cytotoxicity.markers, layer = "scale.data")
+data_values <- FetchData(NK.dataset, vars = cytotoxicity.markers, layer = "data")
+
+
+temp.df <- data_values[1:1000, ]
+temp.df <- log2(temp.df +1)
+temp.df <- t(temp.df)
+rownames(temp.df)
+
+
+# Create heatmap
+heatmap.2(as.matrix(temp.df),   # Convert data frame to matrix
+          trace = "none",   # Do not display trace lines
+          col = batlow.pal,  # Define colors for 0 and 1 values
+          scale = "none",   # Do not scale rows or columns
+          dendrogram = "both",  # Do not draw dendrograms
+          Rowv = TRUE,     # Do not cluster rows
+          Colv = TRUE,     # Do not cluster columns
+          margins = c(10, 10),  # Adjust margins for row and column labels
+          labRow = rownames(temp.df),
+          labCol = TRUE,
+          xlab = "cells",
+          ylab = "Cyto Markers",
+          main = "NK cells not scaled",
+          distfun = function(x){dist(x , method = "manhattan")},
+          hclustfun = function(x){hclust(x , method = "ward.D2")}
+)
+
+
+
+
+
+# "euclidean", "maximum", "manhattan", "canberra", "binary" or "minkowski".
+
+# ward.D", "ward.D2", "single", "complete", "average"
+
+# isolate just cd8 subsets and NK cells, 
+# pseudo bulk them, and then heatmap
+
+
+
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+unique(TICAtlas@meta.data$cell_type)
+cyto.cells.dataset <- subset(TICAtlas, idents = c("NK", "Pre-exhausted CD8 T cells", "Cytotoxic CD8 T cells", "Effector memory CD8 T cells", "Terminally exhausted CD8 T cells"))
+NK.dataset@meta.data$subtype
+
+
+pseudo.seurat <- AggregateExpression(cyto.cells.dataset, 
+                                     return.seurat = TRUE, 
+                                     group.by = c("cell_type", "subtype"))
+
+
+
+
+DoHeatmap(pseudo.seurat, 
+          features = cytotoxicity.markers, 
+          draw.lines = FALSE) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Pseudobulk_heatmap_only_cytocells_across_disease.pdf"))
+dev.off()
+
+
+
+
+# just exhausted cells
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+unique(TICAtlas@meta.data$cell_type)
+exhausted.dataset <- subset(TICAtlas, idents = c("Terminally exhausted CD8 T cells"))
+
+
+scCustomize::Stacked_VlnPlot(exhausted.dataset, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "subtype",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Stacked_vlnplot_cytotoxicity_exhausted_only_across_disease.pdf"))
+dev.off()
+
+
+
+# just effectir memory cells
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+unique(TICAtlas@meta.data$cell_type)
+EM.dataset <- subset(TICAtlas, idents = c("Effector memory CD8 T cells"))
+
+
+scCustomize::Stacked_VlnPlot(EM.dataset, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "subtype",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Stacked_vlnplot_cytotoxicity_EM_CD8_only_across_disease.pdf"))
+dev.off()
+
+
+
+
+
+
+
+
+
+
+# just pDCs
+Idents(TICAtlas) <- TICAtlas@meta.data$cell_type
+unique(TICAtlas@meta.data$cell_type)
+pDC.dataset <- subset(TICAtlas, idents = c("pDC"))
+
+
+scCustomize::Stacked_VlnPlot(pDC.dataset, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "subtype",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Stacked_vlnplot_cytotoxicity_pDCs_only_across_disease.pdf"))
+dev.off()
+
+
+
+
+
+
+# male v female // NK only
+
+
+scCustomize::Stacked_VlnPlot(NK.dataset, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "gender",
+                             x_lab_rotate = TRUE) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Stacked_vlnplot_cytotoxicity_gender_NK_only.pdf"))
+dev.off()
+
+
+
+
+
+
+
+
+
+
+
+
+x <- TICAtlas@meta.data$cell_type
+y <- TICAtlas@meta.data$subtype
+table(x, y)
+table(y)/1000
+
+```
+
+
+

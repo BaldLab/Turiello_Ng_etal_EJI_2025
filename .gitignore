@@ -7,12 +7,16 @@
 .RDataTmp
 
 # output data
-results/**/**
-saves/**/**
+saves/**
 
 # input data 
-data/**/**
+data/**
 
+# large data
+saves/**/**
+
+# output
+results/**/**
 
 # User-specific files
 .Ruserdata
