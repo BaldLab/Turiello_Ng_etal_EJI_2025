@@ -60,6 +60,9 @@ setwd("..")
 # Create output directories & load custom functions & colour scheme
 source("scripts/Setup.R", local = knitr::knit_global())
 
+ggplot2_switch_version(desired_version = "3.5.0")
+# need to downgrade to 3.4.4 for nebulosa
+
 ```
 
 
@@ -265,7 +268,6 @@ dev.off()
 }
 
 
-
 ```
 
 ### Gender differences
@@ -354,7 +356,57 @@ dev.off()
 ```
  
 
+### Platelet NKG7 and TIA1 expression
+```{r Platelet_expression}
 
+output.dir <- "results/figures/tabula_sapiens_platelet_expression/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# identify immune organs
+immune.organs <- c("Spleen", "Thymus", "Salivary_Gland", "Lymph_Node", "Blood", "Bone_Marrow")
+
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$Grouped_l2
+
+# subset by Platelet
+platelet.seurat <- subset(ts.immune.seurat, idents = "Platelet")
+
+table(platelet.seurat@meta.data$organ_tissue) # only cells in blood and spleen 
+# 204 blood and 18 in spleen 
+
+# ensure idents is set to platelet
+Idents(platelet.seurat) <- platelet.seurat@meta.data$Grouped_l2
+
+
+DefaultAssay(platelet.seurat) <- "SCT"
+
+
+VlnPlot(platelet.seurat, 
+        features = c("NKG7", "TIA1"))
+
+dev.copy(pdf, paste0(output.dir, "Vlnplot_SCT_NKG7_TIA1_Platelets_Blood_spleen.pdf"))
+dev.off()
+
+scCustomize::Stacked_VlnPlot(platelet.seurat, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "Grouped_l2",
+                             raster = TRUE,
+                             split.plot = FALSE,
+                             x_lab_rotate = TRUE)
+
+dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplot_SCT_cytotoxic_genes_Platelets_Blood_spleen.pdf"))
+dev.off()
+
+
+
+
+
+```
+ 
 
 ## Cytotoxicity module score & Correlation analysis {.tabset}
 
@@ -535,9 +587,38 @@ dev.off()
 
 
 
-
-
 # not written below here
+
+
+```{r remedy001}
+
+
+# MAIT cells
+
+vars.plot <- c("donor", "organ_tissue", "gender", "anatomical_information", "Grouped_l1", "Grouped_l2", "Grouped_l3", "Grouped_l4", "seurat_clusters")
+
+x <- table(ts.immune.seurat@meta.data$Grouped_l4)
+grep(".*M.*", names(x), value = T)
+
+
+
+for(i in seq_along(vars.plot)){
+  
+  print(scCustomize::DimPlot_scCustom(ts.immune.seurat, 
+                                      reduction = "umap.cca.sct", 
+                                      group.by = vars.plot[i], 
+                                      pt.size = 1,
+                                      label = TRUE,
+                                      figure_plot = TRUE)
+  )
+}
+
+
+
+
+```
+
+
 ### cytotoxic molecule expression for celltypes across tissues
 ```{r cytotoxic_expression_across_tissues}
 

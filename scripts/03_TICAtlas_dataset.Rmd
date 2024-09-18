@@ -63,8 +63,8 @@ source("scripts/Setup.R", local = knitr::knit_global())
 
 
 # note to use sccus and density plots with nebulosa need to downgrade ggplot 
-#remotes::install_version("ggplot2", version = "3.4.4")
-
+ggplot2_switch_version(desired_version = "3.4.4")
+# need to downgrade to 3.4.4 for nebulosa
 
 ```
 
@@ -490,16 +490,19 @@ for(i in seq_along(goi)){
 
 
 
+scCustomize::Plot_Density_Custom(TICAtlas, 
+                                 features = "TRAV7", 
+                                 custom_palette = batlow.pal)
 
 
 #dev.copy(pdf, paste0(output.dir, "TICAtlas_density_plot_cytotoxicity_signature.pdf"))
 #dev.off()
 
-
+grep("TRAV7.*", rownames(TICAtlas), value = T)
 
 # vis cytotoxicity across celltypes 
 scCustomize::Stacked_VlnPlot(TICAtlas, 
-                             features = cytotoxicity.markers,
+                             features = c("KLRB1", "ITGAE", "TRAV7"),
                              pt.size = 0, 
                              group.by = "cell_type",
                              x_lab_rotate = TRUE) + 
