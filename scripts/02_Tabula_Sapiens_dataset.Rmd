@@ -75,8 +75,9 @@ ggplot2_switch_version(desired_version = "3.5.0")
 
 # dataset processed as part of Tabula_Sapiens github repo, filter and normalise and integrate and caclulate umap dims etc all done in that script
 
-ts.immune.seurat <- LoadH5Seurat("data/TS_immune_imputed.h5Seurat", assays = c("SCT", "alra"))
+#ts.immune.seurat <- LoadH5Seurat("data/TS_immune_imputed.h5Seurat", assays = c("SCT", "alra"))
 
+ts.immune.seurat <- LoadH5Seurat("data/TS_immune_imputed_with_TIA1.h5Seurat", assays = c("SCT", "alra"))
 ################################################################################################
 # for easy of use rename the integrattted cca umap in the object to just "umap"
 ################################################################################################
@@ -407,6 +408,74 @@ dev.off()
 
 ```
  
+
+
+
+
+
+### NKG7 and TIA1 expression across tissue
+```{r NKG7_and_TIA1_expression_across_tissue}
+
+output.dir <- "results/figures/tabula_sapiens_NKG7_and_TIA1_across_tissue/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# identify immune organs
+immune.organs <- c("Spleen", "Thymus", "Salivary_Gland", "Lymph_Node", "Blood", "Bone_Marrow")
+
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
+
+# subset by tissue
+tissue.seurat <- subset(ts.immune.seurat, idents = immune.organs)
+
+
+# set idents
+cell.types <- c("NK", "CD8_Tcell", "CD4_Tcell")
+
+
+Idents(tissue.seurat) <- tissue.seurat@meta.data$Grouped_l3
+
+# subset by tissue
+cell.seurat <- subset(tissue.seurat, idents = cell.types[2])
+
+
+
+
+# ensure idents is set to celltypes
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
+
+
+DefaultAssay(ts.immune.seurat) <- "alra"
+
+
+VlnPlot(ts.immune.seurat, 
+        features = c("NKG7", "TIA1", "CD3E"), 
+        pt.size = 0)
+
+dev.copy(pdf, paste0(output.dir, "Vlnplot_SCT_NKG7_TIA1_spleen_alra.pdf"))
+dev.off()
+
+scCustomize::Stacked_VlnPlot(ts.immune.seurat, 
+                             features = c("NKG7", "TIA1"),
+                             pt.size = 0, 
+                             group.by = "Grouped_l2",
+                             raster = TRUE,
+                             split.plot = FALSE,
+                             x_lab_rotate = TRUE)
+
+dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplot_SCT_NKG7_TIA1_spleen_alra.pdf"))
+dev.off()
+
+
+
+
+
+```
+ 
+
 
 ## Cytotoxicity module score & Correlation analysis {.tabset}
 

@@ -100,7 +100,35 @@ table(y)/1000
 
 ```
 
+```{r dataset_stats}
 
+table(TICAtlas@meta.data$subtype)
+#   BC   BCC    CM   CRC    EA   HCC   ICC NSCLC  PDAC   RCC   SCC    UM 
+# 28918 34940 52389 38276 22611 15641  5932 53644 10623 18340 24852  8513 
+length(unique(TICAtlas@meta.data$subtype)) # 12 tumor subtypes
+
+
+length(unique(TICAtlas@meta.data$patient)) # 177 patients
+
+
+table(TICAtlas@meta.data$gender)
+# female    male unknown 
+# 114039   51679  115727 
+
+table(TICAtlas@meta.data$source)
+#        breast     colorectal         liver1         liver2          lung1          lung2      melanoma1      melanoma2 
+#         28918          31367           4331          17242          17077           1460          14991          37398 
+#      multiple       pancreas           skin uveal melanoma 
+#         82967          10623          59792           8513 
+
+
+table(TICAtlas@meta.data$source, TICAtlas@meta.data$subtype)
+
+
+table(TICAtlas@meta.data$cell_type)
+length(unique(TICAtlas@meta.data$cell_type)) # 25
+
+```
 
 ### Dataset overview
 ```{r dataset_overview}

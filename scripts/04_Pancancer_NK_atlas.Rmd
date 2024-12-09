@@ -75,7 +75,24 @@ nk.seurat <- LoadH5Seurat("data/pancancer_NK_atlas.h5seurat") #  data came from 
 nk.seurat@meta.data <- nk.seurat@meta.data %>%
   mutate(tissue = ifelse(meta_tissue %in% c("Normal", "Others"), "non_tumor", as.character(meta_tissue)))
 
+# restrict to just tumor-infiltrating cells
+Idents(nk.seurat) <- nk.seurat@meta.data$tissue
+tumor.seurat <- subset(nk.seurat, idents = "Tumor")
 
+# reformat data because lack of certain groups now that just tumor cells 
+colnames(tumor.seurat@meta.data)
+table(tumor.seurat@meta.data$tissue)
+table(tumor.seurat@meta.data$meta_tissue)
+length(unique(tumor.seurat@meta.data$meta_patientID))
+
+tumor.seurat@meta.data$celltype <- droplevels(tumor.seurat@meta.data$celltype)
+tumor.seurat@meta.data$meta_tissue <- droplevels(tumor.seurat@meta.data$meta_tissue)
+tumor.seurat@meta.data$meta_histology <- droplevels(tumor.seurat@meta.data$meta_histology)
+tumor.seurat@meta.data$meta_patientID <- droplevels(tumor.seurat@meta.data$meta_patientID)
+
+length(unique(tumor.seurat@meta.data$meta_patientID)) # 557 patients
+
+rm(nk.seurat)
 
 ```
 
@@ -86,7 +103,7 @@ nk.seurat@meta.data <- nk.seurat@meta.data %>%
 ### Generic overview of dataset
 ```{r dataset_overview}
 
-output.dir <- "results/figures/Pancancer_NK_atlas/"
+output.dir <- "results/figures/Pancancer_NK_atlas_Tumor_only/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
@@ -94,63 +111,63 @@ if(!dir.exists(output.dir)){
 
 
 
-colnames(nk.seurat@meta.data)
+colnames(tumor.seurat@meta.data)
 
-meta.data.vars <- c("tissue", "Majortype", "celltype")
+meta.data.vars <- c("Majortype", "celltype")
 
 for(i in seq_along(meta.data.vars)){
   print(
-    DimPlot_scCustom(nk.seurat, 
+    DimPlot_scCustom(tumor.seurat, 
                      group.by = meta.data.vars[i],
                      raster = TRUE,
                      raster.dpi = c(2400, 2400),
                      label = TRUE,
                      pt.size = 4) + NoLegend()
   )
-  dev.copy(pdf, paste0(output.dir, "UMAP_", meta.data.vars[i], ".pdf"))
+  dev.copy(pdf, paste0(output.dir, "UMAP_", meta.data.vars[i], "_tumor_only.pdf"))
   dev.off()
     
 }
 
-DimPlot_scCustom(nk.seurat, 
+DimPlot_scCustom(tumor.seurat, 
                  group.by = meta.data.vars[i],
                  raster = TRUE,
                  raster.dpi = c(2400, 2400),
                  label = TRUE,
                  pt.size = 4) 
 
-dev.copy(pdf, paste0(output.dir, "UMAP_", meta.data.vars[i], "_for_legend.pdf"))
+dev.copy(pdf, paste0(output.dir, "UMAP_", meta.data.vars[i], "_tumor_only_for_legend.pdf"))
 dev.off()
 
 
 ```
 
-
 ### visualise genes of interest
 ```{r vis_genes_of_interest}
 
-
-output.dir <- "results/figures/Pancancer_NK_atlas_cytotoxic_genes/"
+output.dir <- "results/figures/Pancancer_NK_atlas_cytotoxic_genes_tumor_only/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
 
 
-group.vec <- c("celltype", "meta_tissue", "tissue", "Majortype", "meta_histology")
+
+
+group.vec <- c("celltype", "Majortype", "meta_histology")
 
 
 for(i in seq_along(cytotoxicity.markers)){
   
-  print(
+ # print(
     
-    scCustomize::Plot_Density_Custom(nk.seurat, 
-                                     features = cytotoxicity.markers[i], 
-                                     custom_palette = batlow.pal)
-  )
+    #scCustomize::Plot_Density_Custom(nk.seurat, 
+      #                               features = cytotoxicity.markers[i], 
+       #                              custom_palette = batlow.pal)
+ # )
   
-  ggsave(paste0(output.dir, "NK_Atlas_density_plot_", cytotoxicity.markers[i], ".tiff"),
-         width = 12, height = 12, units = "in",
-         device = "tiff", dpi = 320)
+  #ggsave(paste0(output.dir, "NK_Atlas_density_plot_", cytotoxicity.markers[i], ".tiff"),
+  #       width = 12, height = 12, units = "in",
+   #      device = "tiff", dpi = 320)
   
   
 
@@ -158,14 +175,14 @@ for(i in seq_along(cytotoxicity.markers)){
 for(j in seq_along(group.vec)){
   
   print(
-    VlnPlot_scCustom(nk.seurat,
+    VlnPlot_scCustom(tumor.seurat,
                      cytotoxicity.markers[i],
                      group.by = group.vec[j],
                      pt.size = 0) + 
       NoLegend()
   )
   
-  dev.copy(pdf, paste0(output.dir, "Vlnplot_", cytotoxicity.markers[i], "_across_", group.vec[i], ".pdf"))
+  dev.copy(pdf, paste0(output.dir, "Vlnplot_", cytotoxicity.markers[i], "_across_", group.vec[j], "_tumor_only.pdf"))
   dev.off()
 }
 
@@ -175,44 +192,99 @@ for(j in seq_along(group.vec)){
 
 ```
 
+### cytotoxicity score scatter plots
+```{r cytotoxicity_score_scatter_plots_tumor_only}
 
-### visualise NKG7
-```{r vis_NKG7}
 
-
-output.dir <- "results/figures/Pancancer_NK_atlas_NKG7/"
+output.dir <- "results/figures/Pancancer_NK_atlas_correlation_scatters_tumor_only/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
 
 
 
-group.vec <- c("celltype", "meta_tissue", "tissue", "Majortype", "meta_histology")
+# note doesnt change if integrated or RNA assay is used
+DefaultAssay(tumor.seurat) <- "RNA"
 
-for(i in seq_along(group.vec)){
+table(tumor.seurat@meta.data$celltype)
+
+Idents(tumor.seurat) <- tumor.seurat@meta.data$Majortype
+pseudo.seurat <- AggregateExpression(tumor.seurat, 
+                                     group.by = c("celltype"),
+                                     return.seurat = TRUE)
+
+goi <- list()
+
+for(i in seq_along(cytotoxicity.markers)){
+  goi[[i]] <- cytotoxicity.markers[-i]
+  name.var <- paste0("cytotoxicity_minus_", cytotoxicity.markers[i])
+  names(goi)[i] <- name.var
+}
+
+goi[[length(goi)+1]] <- cytotoxicity.markers
+names(goi)[length(goi)] <- "Full_cytotoxicity_sig"
+
+
+
+pseudo.seurat <- AddModuleScore(pseudo.seurat,
+                                features = goi, 
+                                name = names(goi))
+
+
+end.point <- length(colnames(pseudo.seurat@meta.data))
+start.point <- end.point-length(goi)
+start.point <- start.point + 1
+colnames(pseudo.seurat@meta.data)[start.point:end.point]
+
+
+library(stringr)
+string.var <- colnames(pseudo.seurat@meta.data)[start.point:end.point]
+new_string <- str_remove(string.var, ".$")
+colnames(pseudo.seurat@meta.data)[start.point:end.point] <- new_string
+
+
+for(i in seq_along(goi)){
+  if(names(goi)[i] == "Full_cytotoxicity_sig"){next}
+  
+  feature.1.var <- names(goi)[i]
+  feature.2.var <- gsub("cytotoxicity_minus_", "", feature.1.var)
   
   print(
-    VlnPlot_scCustom(nk.seurat,
-                     "NKG7",
-                     group.by = group.vec[i],
-                     pt.size = 0) + 
+    scCustomize::FeatureScatter_scCustom(pseudo.seurat, 
+                                         feature1 = feature.1.var,
+                                         feature2 = feature.2.var,
+                                         pt.size = 5,
+                                         span = TRUE) + 
+      scale_x_continuous(limits = c(0, 0.8)) + 
       NoLegend()
   )
   
-  dev.copy(pdf, paste0(output.dir, "Vlnplot_NKG7_across_", group.vec[i], ".pdf"))
+  dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, "_tumor_only.pdf"))
   dev.off()
 }
 
 
+# for legend
+scCustomize::FeatureScatter_scCustom(pseudo.seurat, 
+                                     feature1 = feature.1.var,
+                                     feature2 = feature.2.var,
+                                     pt.size = 5,
+                                     span = TRUE) + 
+  scale_x_continuous(limits = c(0, 0.8))
 
+dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, "_tumor_only_forlegend.pdf"))
+dev.off()
 
 
 ```
 
 
 
-### cytotoxicity score scatter plots
-```{r cytotoxicity_score_scatter_plots}
+
+# OLD CODE
+
+### cytotoxicity score scatter plots // Tumor, healthy tissue, and blood
+```{r cytotoxicity_score_scatter_plots_all_cells}
 
 
 output.dir <- "results/figures/Pancancer_NK_atlas_correlation_scatters/"
@@ -228,6 +300,7 @@ DefaultAssay(nk.seurat) <- "RNA"
 x <- nk.seurat@meta.data$tissue
 y <- nk.seurat@meta.data$celltype
 table(x, y)
+
 
 Idents(nk.seurat) <- nk.seurat@meta.data$Majortype
 pseudo.seurat <- AggregateExpression(nk.seurat, 
@@ -298,13 +371,6 @@ dev.off()
 
 
 ```
-
-
-
-
-
-
-
 
 
 ```{r}
