@@ -29,6 +29,12 @@ Built with R version `r getRversion()`
 # 3 timepoints - Day 0, 3, 7 
 # Treatment = vaccination with HIV vaccine
 
+
+# downloaded from https://atlas.fredhutch.org/nygc/multimodal-pbmc/
+# published in https://www.sciencedirect.com/science/article/pii/S0092867421005833
+
+# for this analysis used only day 0 and therefore healthy baseline
+
 ```
 
 ### Environment
