@@ -9,12 +9,12 @@
 **Roberta Turiello**<sup>1</sup>\*, **Susanna S. Ng**<sup>1,2</sup>\*, **Elisabeth Tan**<sup>1</sup>, **Gemma van der Voort**<sup>1</sup>, **Nazhifah Salim**<sup>1</sup>, **Michelle Yong**<sup>1</sup>, **Malika Khassenova**<sup>1</sup>, **Johannes Oldenburg**<sup>3</sup>, **Heiko Rühl**<sup>3</sup>, **Jan Hasenauer**<sup>4,5</sup>, **Laura Surace**<sup>2</sup>, **Marieta Toma**<sup>6</sup>, **Tobias Bald**<sup>1</sup>, **Michael Hölzel**<sup>1</sup>\* and **Dillon Corvino**<sup>1</sup>\*#
 
 
-¹ Institute of Experimental Oncology, Medical Faculty, University Hospital Bonn, University of Bonn, Bonn, Germany\
-² Institute of Clinical Chemistry and Clinical Pharmacology, University Hospital Bonn, University of Bonn, Bonn, Germany\
-³ Institute for Experimental Hematology and Transfusion Medicine, University Hospital Bonn, University of Bonn, Bonn, Germany\
-⁴ Computational Health Center, Helmholtz Zentrum München Deutsches Forschungszentrum für Gesundheit und Umwelt (GmbH), Neuherberg, Germany\
-⁵ Faculty of Mathematics and Natural Sciences, and the Life and Medical Sciences Institute (LIMES), Rheinische Friedrich-Wilhelms-Universität Bonn, Bonn, Germany\
-⁶ Institute of Pathology, University Hospital Bonn, University of Bonn, Bonn, Germany
+<sup>1</sup> Institute of Experimental Oncology, Medical Faculty, University Hospital Bonn, University of Bonn, Bonn, Germany  
+<sup>2</sup> Institute of Clinical Chemistry and Clinical Pharmacology, University Hospital Bonn, University of Bonn, Bonn, Germany  
+<sup>3</sup> Institute for Experimental Hematology and Transfusion Medicine, University Hospital Bonn, University of Bonn, Bonn, Germany  
+<sup>4</sup> Computational Health Center, Helmholtz Zentrum München Deutsches Forschungszentrum für Gesundheit und Umwelt (GmbH), Neuherberg, Germany  
+<sup>5</sup> Faculty of Mathematics and Natural Sciences, and the Life and Medical Sciences Institute (LIMES), Rheinische Friedrich-Wilhelms-Universität Bonn, Bonn, Germany  
+<sup>6</sup> Institute of Pathology, University Hospital Bonn, University of Bonn, Bonn, Germany  
 
 \* Authors contributed equally\
 \# Lead contact
