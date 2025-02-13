@@ -26,12 +26,9 @@
 
 ------------------------------------------------------------------------
 
-### Code Attribution
-
-This code and analysis were authored by **Dillon Corvino**.
-
-------------------------------------------------------------------------
-
 ## Abstract
 Cytotoxicity is a cornerstone of immune defense, critical for combating tumors and infections. This process relies on the coordinated action of granzymes and pore-forming proteins, with Granzyme B (GZMB) and Perforin (PRF1) being key markers and the most widely studied molecules pertaining to cytotoxicity. However, other human granzymes and cytotoxic components remain underexplored, despite growing evidence of their distinct, context-dependent roles. Natural Killer Cell Granule Protein 7 (NKG7) has recently emerged as a crucial cytotoxicity regulator, yet its expression patterns and function are poorly understood. Using large publicly available single-cell RNA sequencing atlases, we performed a comprehensive profiling of cytotoxicity across immune subsets and tissues. Our analysis highlights NKG7 expression as a strong marker of cytotoxicity, exhibiting a strong correlation with overall cytotoxic activity (r = 0.97) and surpassing traditional markers such as Granzyme B and Perforin in reliability. Furthermore, NKG7 expression is notably consistent across diverse immune subsets and tissues, reinforcing its versatility and robustness as a cytotoxicity marker. These findings position NKG7 as an invaluable tool for evaluating immune responses and a reliable indicator of cytotoxic functionality across biological and clinical contexts.
 
+### Code Attribution
+
+This code and analysis were authored by **Dillon Corvino**.
