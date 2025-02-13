@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/705596910.svg)](https://doi.org/10.5281/zenodo.14865740)
+
 # NKG7 is a stable marker of cytotoxicity across immune contexts and within the tumor microenvironment
 
 ### [Preprint: is available on BioRxiv](https://www.biorxiv.org/content/10.1101/2025.02.05.636622v1)
