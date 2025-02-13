@@ -1,0 +1,254 @@
+---
+title: "Tabula_Sapeins_dataset_analysis_manuscript"
+author: "Dillon Corvino"
+date: "04/02/2024"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: united
+    highlight: tango
+    df_print: paged
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+Built with R version `r getRversion()`
+
+## Setup {.tabset}
+
+### Dataset information
+```{r Dataset_Info}
+
+
+
+```
+
+### Environment
+```{r setup}
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,  
+  eval = TRUE, 
+  tidy = TRUE
+)
+
+knitr::opts_knit$set(
+  root.dir = "../"
+)
+
+
+# Environment Set up
+rm(list = ls()) #Clean workspace
+cat("\014")     #Clean Console
+gc() # Free memory
+
+# pipeline variables
+long.compute <- FALSE
+
+# Establish working directory
+library("rstudioapi")
+
+# Set working directory to source file location
+setwd(dirname(getActiveDocumentContext()$path))
+setwd("..")
+
+# Create output directories & load custom functions & colour scheme
+source("scripts/Setup.R", local = knitr::knit_global())
+
+ggplot2_switch_version(desired_version = "3.5.0")
+# need to downgrade to 3.4.4 for nebulosa
+
+```
+
+
+### load dataset
+```{r load_dataset}
+
+#######################
+# load dataset
+#######################
+
+# dataset processed as part of Tabula_Sapiens github repo, filter and normalise and integrate and caclulate umap dims etc all done in that script
+
+#ts.immune.seurat <- LoadH5Seurat("data/TS_immune_imputed.h5Seurat", assays = c("SCT", "alra"))
+
+ts.immune.seurat <- LoadH5Seurat("data/TS_immune_imputed_with_TIA1.h5Seurat", assays = c("SCT", "alra"))
+################################################################################################
+# for easy of use rename the integrattted cca umap in the object to just "umap"
+################################################################################################
+
+new_reduction <- CreateDimReducObject(embeddings = Embeddings(ts.immune.seurat, reduction = "umap.cca.sct"), key = "umap")
+ts.immune.seurat[["umap"]] <- new_reduction
+
+```
+
+## Figure 3 {.tabset}
+
+
+### Figure 3A - CD8 and NK Cytotoxicity expression across immune specific organs vlnplots
+```{r Figure_3A}
+
+#################################
+# Immune specific organs 
+#################################
+
+DefaultAssay(ts.immune.seurat) <- "alra"
+
+output.dir <- "results/figures/Figure_3/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+# identify immune organs
+immune.organs <- c("Spleen", "Thymus", "Salivary_Gland", "Lymph_Node", "Blood", "Bone_Marrow")
+
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
+
+# subset by immune organs
+immune.organ.seurat <- subset(ts.immune.seurat, idents = immune.organs)
+immune.organ.seurat # 173,153 cells
+
+table(immune.organ.seurat@meta.data$gender, immune.organ.seurat@meta.data$organ_tissue)
+table(immune.organ.seurat@meta.data$Grouped_l3, immune.organ.seurat@meta.data$organ_tissue)
+table(immune.organ.seurat@meta.data$Grouped_l2, immune.organ.seurat@meta.data$organ_tissue)
+table(immune.organ.seurat@meta.data$Grouped_l4, immune.organ.seurat@meta.data$organ_tissue)
+
+# at level 3 resolution 
+# iteratively investigate these cells across tissues
+cell.types <- c("NK", "CD8_Tcell")
+
+# set idents
+Idents(immune.organ.seurat) <- immune.organ.seurat@meta.data$Grouped_l3
+
+for(i in seq_along(cell.types)){
+  
+temp.seurat <- subset(immune.organ.seurat, idents = cell.types[i])
+
+DefaultAssay(temp.seurat) <- "alra"
+
+print(
+scCustomize::Stacked_VlnPlot(temp.seurat, 
+                             features = cytotoxicity.markers,
+                             pt.size = 0, 
+                             group.by = "organ_tissue",
+                             raster = FALSE,
+                             split.plot = FALSE,
+                             x_lab_rotate = TRUE)
+)
+
+dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplot_cytotoxic_molecules_across_tissue_", cell.types[i], ".pdf"))
+dev.off()
+
+
+}
+
+
+```
+
+
+
+### Figure 3B - Correlation scatters
+```{r Figure_3B}
+
+output.dir <- "results/figures/Figure_3/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+
+DefaultAssay(ts.immune.seurat) <- "SCT"
+
+# just NK and CD8 T cells
+# set idents
+Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$Grouped_l3
+unique(Idents(ts.immune.seurat))
+
+# subset by immune organs
+NK.seurat <- subset(ts.immune.seurat, idents = c("NK", "CD8_Tcell"))
+NK.seurat # 33,467 cells
+ 
+
+
+pseudo.ts <- AggregateExpression(NK.seurat, 
+                                 assays = "SCT",
+                                 return.seurat = TRUE,
+                                 group.by = c("Grouped_l3", "organ_tissue"))
+
+
+Idents(pseudo.ts) <- pseudo.ts@meta.data$orig.ident
+length(unique(Idents(pseudo.ts))) # 31 classifications
+
+
+goi <- list()
+
+for(i in seq_along(cytotoxicity.markers)){
+  goi[[i]] <- cytotoxicity.markers[-i]
+  name.var <- paste0("cytotoxicity_minus_", cytotoxicity.markers[i])
+  names(goi)[i] <- name.var
+}
+
+goi[[length(goi)+1]] <- cytotoxicity.markers
+names(goi)[length(goi)] <- "Full_cytotoxicity_sig"
+
+
+
+pseudo.ts <- AddModuleScore(pseudo.ts,
+                             features = goi, 
+                             name = names(goi))
+
+
+end.point <- length(colnames(pseudo.ts@meta.data))
+start.point <- end.point-length(goi)
+start.point <- start.point + 1
+colnames(pseudo.ts@meta.data)[start.point:end.point]
+
+
+library(stringr)
+string.var <- colnames(pseudo.ts@meta.data)[start.point:end.point]
+new_string <- str_remove(string.var, ".$")
+colnames(pseudo.ts@meta.data)[start.point:end.point] <- new_string
+
+
+for(i in seq_along(goi)){
+  if(names(goi)[i] == "Full_cytotoxicity_sig"){next}
+  
+  feature.1.var <- names(goi)[i]
+  feature.2.var <- gsub("cytotoxicity_minus_", "", feature.1.var)
+  
+  print(
+    FeatureScatter(pseudo.ts, 
+                   feature1 = feature.1.var,
+                   feature2 = feature.2.var,
+                   pt.size = 5,
+                   span = TRUE) + 
+      scale_x_continuous(limits = c(-0.5, 1.5)) +
+      NoLegend()
+  )
+  
+  dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, ".pdf"))
+  dev.off()
+}
+
+
+FeatureScatter(pseudo.ts, 
+               feature1 = feature.1.var,
+               feature2 = feature.2.var,
+               pt.size = 5,
+               span = TRUE)
+dev.copy(pdf, paste0(output.dir, "cor_scatter_legend.pdf"))
+dev.off()
+
+```
+
+
+
+
+
+

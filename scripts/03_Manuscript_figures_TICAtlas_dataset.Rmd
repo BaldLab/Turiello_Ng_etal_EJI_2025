@@ -1,0 +1,336 @@
+---
+title: "TICAtlas_dataset_Manuscript"
+author: "Dillon Corvino"
+date: "15/02/2024"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: united
+    highlight: tango
+    df_print: paged
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+Built with R version `r getRversion()`
+
+## Setup {.tabset}
+
+### Dataset information
+```{r Dataset_Info}
+
+# dataset from 
+# publication = https://genome.cshlp.org/content/31/10/1913
+# downloaded from = https://zenodo.org/records/4263972
+
+
+```
+
+### Environment
+```{r setup}
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,  
+  eval = TRUE, 
+  tidy = TRUE
+)
+
+knitr::opts_knit$set(
+  root.dir = "../"
+)
+
+
+# Environment Set up
+rm(list = ls()) #Clean workspace
+cat("\014")     #Clean Console
+gc() # Free memory
+
+# pipeline variables
+long.compute <- TRUE
+do.plot <- TRUE
+
+# Establish working directory
+library("rstudioapi")
+
+# Set working directory to source file location
+setwd(dirname(getActiveDocumentContext()$path))
+setwd("..")
+
+# Create output directories & load custom functions & colour scheme
+source("scripts/Setup.R", local = knitr::knit_global())
+
+
+# note to use sccus and density plots with nebulosa need to downgrade ggplot 
+ggplot2_switch_version(desired_version = "3.4.4")
+# need to downgrade to 3.4.4 for nebulosa
+
+```
+
+
+
+## Loading dataset {.tabset}
+
+### load dataset
+```{r load_dataset}
+
+TICAtlas <- LoadSeuratRds("data/TICAtlas.rds")
+
+TICAtlas # 92,256 features across 317,111 cells (RNA assay)
+
+head(TICAtlas@meta.data)
+
+# set object defaults 
+DefaultAssay(TICAtlas) <- "RNA"
+Idents(TICAtlas) <- TICAtlas@meta.data$subtype
+
+# filter out OC subtype 
+y <- TICAtlas@meta.data$subtype
+table(y)/1000
+# OC has lowest number of cells and therefore downstream analysis is highly variable just due to low number 
+# remove OC from dataset
+
+# remove OC subtype
+Idents(TICAtlas) <- TICAtlas@meta.data$subtype
+TICAtlas <- subset(TICAtlas, idents = "OC", invert = T)
+y <- TICAtlas@meta.data$subtype
+table(y)/1000
+
+
+```
+
+```{r dataset_stats}
+
+table(TICAtlas@meta.data$subtype)
+#   BC   BCC    CM   CRC    EA   HCC   ICC NSCLC  PDAC   RCC   SCC    UM 
+# 28918 34940 52389 38276 22611 15641  5932 53644 10623 18340 24852  8513 
+length(unique(TICAtlas@meta.data$subtype)) # 12 tumor subtypes
+
+
+length(unique(TICAtlas@meta.data$patient)) # 177 patients
+
+
+table(TICAtlas@meta.data$gender)
+# female    male unknown 
+# 114039   51679  115727 
+
+table(TICAtlas@meta.data$source)
+#        breast     colorectal         liver1         liver2          lung1          lung2      melanoma1      melanoma2 
+#         28918          31367           4331          17242          17077           1460          14991          37398 
+#      multiple       pancreas           skin uveal melanoma 
+#         82967          10623          59792           8513 
+
+
+table(TICAtlas@meta.data$source, TICAtlas@meta.data$subtype)
+
+
+table(TICAtlas@meta.data$cell_type)
+length(unique(TICAtlas@meta.data$cell_type)) # 25
+
+```
+
+## Figure 5 {.tabset}
+
+
+### Figure 5 A & C - Cytotoxicity signature Density and Vlnplot
+```{r Figure_5A_C}
+
+###########################
+# cytotoxicity signature 
+###########################
+
+
+output.dir <- "results/figures/Figure_5/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+DefaultAssay(TICAtlas) <- "RNA"
+
+TICAtlas <- AddModuleScore(TICAtlas, 
+                           features = list(cytotoxicity = cytotoxicity.markers), 
+                           name = "Cytotoxicity")
+
+
+TICAtlas@meta.data$Cytotoxicity1
+
+
+
+# density plot of cytotoxicity singature 
+
+scCustomize::Plot_Density_Custom(TICAtlas, 
+                                 features = "Cytotoxicity1", 
+                                 custom_palette = batlow.pal)
+
+ggsave(paste0(output.dir, "Figure_5A_TICAtlas_density_plot_cytotoxicity_signature.tiff"), width = 12, height = 12, units = "in", device = "tiff", dpi = 320)
+
+
+
+# sorted vln plot of cytotoxicity 
+VlnPlot_scCustom(TICAtlas, 
+                 feature = "Cytotoxicity1", 
+                 sort = TRUE,
+                 pt.size = 0) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Figure_5C_TICAtlas_vln_plot_cytotoxicity_signature.pdf"))
+dev.off()
+
+
+
+
+```
+
+
+### Figure_5B and Supplementary Figure 2A- Dataset overview
+```{r Figure_5B_Sup_Fig_2A}
+
+
+output.dir <- "results/figures/Figure_5/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+DefaultAssay(TICAtlas) <- "RNA"
+
+
+
+TICAtlas@meta.data
+
+DimPlot_scCustom(TICAtlas,
+                 pt.size = 2,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "cell_type") + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_grouped_by_celltype.pdf"))
+dev.off()
+
+
+
+output.dir <- "results/figures/Supplementary_Figure_2/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+
+DimPlot_scCustom(TICAtlas,
+                 pt.size = 2,
+                 raster = TRUE,
+                 raster.dpi = c(2400, 2400),
+                 label = TRUE,
+                 group.by = "subtype") + NoLegend()
+
+
+dev.copy(pdf, paste0(output.dir, "TICAtlas_grouped_by_subtype.pdf"))
+dev.off()
+
+
+
+```
+
+
+
+
+### Figure 5D & Supplementary Figure 2B - Correlation scatters
+```{r Figure_5D_Sup_Fig_2B}
+
+output.dir <- "results/figures/Figure_5/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+DefaultAssay(TICAtlas) <- "integrated"
+Idents(TICAtlas) <- TICAtlas@meta.data$subtype
+
+pseudo.seurat <- AggregateExpression(TICAtlas, 
+                                     group.by = c("cell_type", "subtype"),
+                                     return.seurat = TRUE)
+
+goi <- list()
+
+for(i in seq_along(cytotoxicity.markers)){
+  goi[[i]] <- cytotoxicity.markers[-i]
+  name.var <- paste0("cytotoxicity_minus_", cytotoxicity.markers[i])
+  names(goi)[i] <- name.var
+}
+
+goi[[length(goi)+1]] <- cytotoxicity.markers
+names(goi)[length(goi)] <- "Full_cytotoxicity_sig"
+
+
+
+pseudo.seurat <- AddModuleScore(pseudo.seurat,
+                                features = goi, 
+                                name = names(goi))
+
+
+end.point <- length(colnames(pseudo.seurat@meta.data))
+start.point <- end.point-length(goi)
+start.point <- start.point + 1
+colnames(pseudo.seurat@meta.data)[start.point:end.point]
+
+
+library(stringr)
+string.var <- colnames(pseudo.seurat@meta.data)[start.point:end.point]
+new_string <- str_remove(string.var, ".$")
+colnames(pseudo.seurat@meta.data)[start.point:end.point] <- new_string
+
+
+for(i in seq_along(goi)){
+  if(names(goi)[i] == "Full_cytotoxicity_sig"){next}
+  
+  feature.1.var <- names(goi)[i]
+  feature.2.var <- gsub("cytotoxicity_minus_", "", feature.1.var)
+  
+  print(
+    FeatureScatter(pseudo.seurat, 
+                   feature1 = feature.1.var,
+                   feature2 = feature.2.var,
+                   pt.size = 5,
+                   span = TRUE) + scale_x_continuous(limits = c(-1, 2.5)) + NoLegend()
+  )
+  
+  dev.copy(pdf, paste0(output.dir, "Cor_scatter_", feature.1.var, "_vs_", feature.2.var, ".pdf"))
+  dev.off()
+}
+
+
+
+
+
+# Supplementar Figure 2B
+
+
+output.dir <- "results/figures/Supplementary_Figure_2/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# cor score without pDC for GZMB sig 
+Idents(pseudo.seurat) <- pseudo.seurat@meta.data$cell_type
+temp.seurat <- subset(pseudo.seurat, idents = "pDC", invert = T)
+Idents(temp.seurat) <- temp.seurat@meta.data$orig.ident
+
+FeatureScatter(temp.seurat, 
+               feature1 = "cytotoxicity_minus_GZMB",
+               feature2 = "GZMB",
+               pt.size = 5,
+               span = TRUE) + scale_x_continuous(limits = c(-1, 2.5)) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Cor_scatter_Cytotoxicity_minus_GZMB_vs_GZMB_without_pDC_subset.pdf"))
+dev.off()
+
+
+```
+
+

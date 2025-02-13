@@ -184,19 +184,19 @@ if(long.compute){
 
 ```
 
-## Dataset overview {.tabset}
+## Figure 1 {.tabset}
 
-### Broad visualisation of dataset
-```{r Visualisation_of_PBMC_reference}
+### Figure 1A
+```{r Figure_1A}
 
-output.dir <- "results/figures/WNN_visualisations/"
+output.dir <- "results/figures/Figure_1A/"
 if(!dir.exists(output.dir)){
   dir.create(output.dir, 
              recursive = T)}
 
 
 # A few levels of data annotation exist 
-vars.plot <- c("celltype.l1", "celltype.l2", "celltype.l3", "custom_anno", "donor", "Phase", "time")
+vars.plot <- c("custom_anno")
 
 for(i in seq_along(vars.plot)){
   
