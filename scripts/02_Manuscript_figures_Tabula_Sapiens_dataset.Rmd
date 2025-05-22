@@ -248,55 +248,12 @@ dev.off()
 ```
 
 
- 
-## Supp fig X {.tabset}
-### Sup fig X - NKG7 distribution
-```{r remedy001}
+### Figure 3C - NKG7 distribution
+```{r Figure_3C}
 
 DefaultAssay(ts.immune.seurat) <- "alra"
 
-output.dir <- "results/figures/Figure_X/"
-
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-head(ts.immune.seurat@meta.data)
-
-# Figure X
-p1 <- scCustomize::DimPlot_scCustom(ts.immune.seurat, 
-                                  reduction = "umap",
-                                  group.by = "Grouped_l2",
-                                  label = TRUE, 
-                                  label.size = 3, 
-                                  pt.size = 3,
-                                  raster = T,
-                                  raster.dpi = c(2400, 2400),
-                                  repel = TRUE) 
-
-print(p1)
-dev.copy(pdf, paste0(output.dir, "Figure_X_UMAP_annotations_L2_TabulaSapiens_withlegend.pdf"))
-dev.off()
-
-print(p1 + NoLegend())
-dev.copy(pdf, paste0(output.dir, "Figure_X_UMAP_annotations_L2_TabulaSapiens.pdf"))
-dev.off()
-
-
-
-# Figure X
-scCustomize::Plot_Density_Custom(ts.immune.seurat,
-                                 features = "NKG7",
-                                 custom_palette = batlow.pal,
-                                 reduction = "umap", 
-                                 pt.size = 1) + 
-  NoLegend()
-
-dev.copy(pdf, paste0(output.dir, "Figure_X_UMAP_DensityPlot_NKG7_TabulaSapiens.pdf"))
-dev.off()
-
-
-# Figure X
+# Figure 3C
 VlnPlot_scCustom(ts.immune.seurat,
                  features = "NKG7",
                  pt.size = 0,
@@ -304,70 +261,8 @@ VlnPlot_scCustom(ts.immune.seurat,
                  sort = "increasing",
                  log = F) + NoLegend()
 
-dev.copy(pdf, paste0(output.dir, "Figure_X_VlnPlot_NKG7_ordered_tabula_sapiens.pdf"))
+dev.copy(pdf, paste0(output.dir, "Figure_3C_VlnPlot_NKG7_ordered_tabula_sapiens.pdf"))
 dev.off()
 
-
-
-```
-
-
-```{r remedy002}
-
-unique(ts.immune.seurat@meta.data$organ_tissue)
-
-
-
-DefaultAssay(ts.immune.seurat) <- "alra"
-
-output.dir <- "results/figures/Figure_X/"
-if(!dir.exists(output.dir)){
-  dir.create(output.dir, 
-             recursive = T)}
-
-# identify immune organs
-immune.organs <- c("Spleen", "Thymus", "Salivary_Gland", "Lymph_Node", "Blood", "Bone_Marrow", "Uterus")
-
-
-# set idents
-Idents(ts.immune.seurat) <- ts.immune.seurat@meta.data$organ_tissue
-
-# subset by immune organs
-immune.organ.seurat <- subset(ts.immune.seurat, idents = immune.organs)
-immune.organ.seurat # 173,153 cells
-
-table(immune.organ.seurat@meta.data$gender, immune.organ.seurat@meta.data$organ_tissue)
-table(immune.organ.seurat@meta.data$Grouped_l3, immune.organ.seurat@meta.data$organ_tissue)
-table(immune.organ.seurat@meta.data$Grouped_l2, immune.organ.seurat@meta.data$organ_tissue)
-table(immune.organ.seurat@meta.data$Grouped_l4, immune.organ.seurat@meta.data$organ_tissue)
-
-# at level 3 resolution 
-# iteratively investigate these cells across tissues
-cell.types <- c("NK", "CD8_Tcell")
-
-# set idents
-Idents(immune.organ.seurat) <- immune.organ.seurat@meta.data$Grouped_l3
-
-for(i in seq_along(cell.types)){
-  
-temp.seurat <- subset(immune.organ.seurat, idents = cell.types[i])
-
-DefaultAssay(temp.seurat) <- "alra"
-
-print(
-scCustomize::Stacked_VlnPlot(temp.seurat, 
-                             features = cytotoxicity.markers,
-                             pt.size = 0, 
-                             group.by = "organ_tissue",
-                             raster = FALSE,
-                             split.plot = FALSE,
-                             x_lab_rotate = TRUE)
-)
-
-dev.copy(pdf, paste0(output.dir, "Stacked_Vlnplot_cytotoxic_molecules_across_tissue_", cell.types[i], ".pdf"))
-dev.off()
-
-
-}
 
 ```
