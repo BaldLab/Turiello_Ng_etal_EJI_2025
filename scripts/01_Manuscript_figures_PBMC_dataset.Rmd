@@ -844,4 +844,278 @@ for(i in seq_along(subset.var)){
 ```
  
  
+## Supp fig X {.tabset}
+### Sup fig X - NKG7 distribution
+```{r remedy001}
+
+DefaultAssay(pbmc.seurat) <- "alra"
+
+output.dir <- "results/figures/Figure_X/"
+if(!dir.exists(output.dir)){
+  dir.create(output.dir, 
+             recursive = T)}
+
+
+# Figure X
+scCustomize::Plot_Density_Custom(pbmc.seurat,
+                                 features = "NKG7",
+                                 custom_palette = batlow.pal,
+                                 reduction = "wnn.umap", 
+                                 pt.size = 1) + 
+  NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Figure_X_wnnUMAP_DensityPlot_NKG7.pdf"))
+dev.off()
+
+# Figure X
+VlnPlot_scCustom(pbmc.seurat,
+                 features = "NKG7",
+                 pt.size = 0,
+                 group.by = "custom_anno",
+                 sort = "increasing",
+                 log = F) + NoLegend()
+
+dev.copy(pdf, paste0(output.dir, "Figure_X_VlnPlot_NKG7_ordered.pdf"))
+dev.off()
+
+
+
+
+
+
+
+# Load libraries
+library(Seurat)
+library(dplyr)
+
+# Define genes of interest
+cyto.genes <- cytotoxicity.markers
+
+# Extract expression matrix
+expr <- GetAssayData(pbmc.seurat, layer = "data", assay = "alra")  
+
+# Initialize result dataframe
+cyto.stats <- lapply(cyto.genes, function(gene){
+  vals <- expr[gene, ]
+  data.frame(
+    Gene              = gene,
+    Percent_Positive  = mean(vals > 0) * 100,
+    Mean_Expression   = mean(vals),
+    Mean_Pos_Only     = ifelse(sum(vals > 0) > 0, mean(vals[vals > 0]), NA),
+    Median_Pos_Only   = ifelse(sum(vals > 0) > 0, median(vals[vals > 0]), NA),
+    Max_Expression    = max(vals)
+  )
+}) %>% bind_rows()
+
+# Round all numeric columns to 2 significant figures
+cyto.stats_rounded <- cyto.stats %>%
+  mutate(across(where(is.numeric), ~ signif(., digits = 4)))
+
+write.csv(cyto.stats_rounded, paste0(output.dir, "cytotoxicity_gene_stats_pbmc_dataset_alra.csv"))
+
+
+```
+
+### Figure 4 - Co-expression boolean upset plots without top 10 limitation
+```{r Figure_4_UpsetPlots_expanded}
+
+# note use ComplexUpset not UpsetR package
+#install.packages('ComplexUpset')
+library(ComplexUpset)
+
+# Create results directories
+output.dir <- "results/figures/Figure_X/"
+
+if(!dir.exists(output.dir)){
+  dir.create(output.dir,
+             recursive = TRUE)}
+
+################################################
+# Boolean expression patterns within cell types
+################################################
+
+# determine thresholds for expression 
+DefaultAssay(pbmc.seurat) <- "SCT"
+
+theshold.val <- 1
+
+
+
+
+
+# Set SCT assay and identity
+DefaultAssay(pbmc.seurat) <- "SCT"
+Idents(pbmc.seurat) <- pbmc.seurat@meta.data$custom_anno
+
+# Define cytotoxicity marker of interest
+marker <- "NKG7"  
+
+# Define populations to analyze
+subset.var <- c("CD8_EM", "CD4_CTL", "NK_Bright", "NK_Dim")
+
+# Initialize results list
+nkg7.freq.df <- data.frame(
+  Population      = character(),
+  Total_Cells     = integer(),
+  NKG7_Positive   = integer(),
+  NKG7_Negative   = integer(),
+  Percent_NKG7_Negative = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through subsets
+for(j in seq_along(subset.var)){
+  
+  pop <- subset.var[j]
+  message("Analyzing population: ", pop)
+  
+  # Subset the dataset
+  temp.seurat <- subset(pbmc.seurat, idents = pop)
+  
+  # Extract NKG7 expression
+  expr.vec <- FetchData(temp.seurat, vars = marker)[,1]
+  
+  # Determine which cells are NKG7-negative
+  nkg7.negative <- expr.vec <= theshold.val
+  
+  # Summarize
+  total <- length(expr.vec)
+  n.neg <- sum(nkg7.negative)
+  n.pos <- total - n.neg
+  percent.neg <- round(100 * n.neg / total, 2)
+  
+  # Add to results table
+  nkg7.freq.df <- rbind(nkg7.freq.df, data.frame(
+    Population = pop,
+    Total_Cells = total,
+    NKG7_Positive = n.pos,
+    NKG7_Negative = n.neg,
+    Percent_NKG7_Negative = percent.neg
+  ))
+}
+
+# View result
+nkg7.freq.df
+
+
+
+VlnPlot_scCustom(pbmc.seurat, "GZMB", pt.size = 0)
+
+
+
+
+
+
+
+
+
+
+
+
+for(i in seq_along(cytotoxicity.markers)){
+  print(
+  scCustomize::VlnPlot_scCustom(pbmc.seurat, 
+                              feature = cytotoxicity.markers[i], 
+                              pt.size = 0, 
+                              group.by = "custom_anno") + 
+  NoLegend() +
+  geom_hline(yintercept = theshold.val, 
+             linetype = "dashed",
+             color = "red")
+  )
+  dev.copy(pdf, paste0(output.dir, "Threshold_val_determination_", cytotoxicity.markers[i], ".pdf"))
+  dev.off()
+  
+}
+
+
+
+########################################
+# perform analysis for cytotoxic populations
+########################################
+
+# Determine expression status
+DefaultAssay(pbmc.seurat) <- "SCT"
+Idents(pbmc.seurat) <- pbmc.seurat@meta.data$custom_anno
+unique(pbmc.seurat@meta.data$custom_anno)
+
+
+# populations to loop over
+subset.var <- c("CD8_EM", "CD4_CTL", "NK_Bright", "NK_Dim")
+
+for(j in seq_along(subset.var)){
+  
+  print(paste0("Performing analysis for ", subset.var[j]))
+  
+  # subset dataset 
+  temp.seurat <- subset(pbmc.seurat, idents = subset.var[j])
+  
+  # quantify granzyme expression
+  for(i in seq_along(cytotoxicity.markers)){
+    logic.vec <- rownames(temp.seurat@assays$SCT@data) == cytotoxicity.markers[i]
+    goi.expression <- temp.seurat@assays$SCT@data[logic.vec, ]
+    expression.logic <- goi.expression > theshold.val
+    sum(names(expression.logic) != rownames(temp.seurat@meta.data)) # same order, nice and easy 
+    
+    temp.seurat@meta.data[[paste0(cytotoxicity.markers[i], "_status")]] <- expression.logic
+    
+  }
+  
+  # extract and format metadata
+  meta.data <- temp.seurat@meta.data %>%
+    dplyr::select(ends_with("_status"))
+  
+  input_data <- data.frame(lapply(meta.data, as.integer))
+  
+  rownames(input_data) <- rownames(meta.data)
+  
+  colnames(input_data) <- gsub("_status", "", colnames(input_data))
+  
+  print(
+    # plot upset plot 
+    ComplexUpset::upset(data = input_data, 
+                        n_intersections = 50,
+                        intersect = rev(c("GZMA", "GZMB", "GZMH", "GZMK", "GZMM", "GNLY", "PRF1", "NKG7")),
+                        name = "cytotoxic profile",
+                        width_ratio = 0.15,
+                        height_ratio = 0.5,
+                        min_size = 1,
+                        keep_empty_groups = TRUE,
+                        sort_intersections = 'descending',
+                        sort_sets = FALSE,
+                        base_annotations = list('Intersection size' = intersection_size(
+                          text_mapping = aes(label = paste0(round((!!get_size_mode("exclusive_intersection")/nrow(input_data))*100, 2), "%",
+                                                            "\n",
+                                                            "(",
+                                                            !!get_size_mode("exclusive_intersection"),
+                                                            ")")))
+                          
+                          + annotate(
+                            geom = 'text',
+                            x = Inf, 
+                            y = Inf,
+                            label = paste('Total:', nrow(input_data)),
+                            vjust = 1,
+                            hjust = 1)
+                          
+                          + ylab('Intersection size')
+                        ), 
+                        set_sizes = (upset_set_size()
+                                     + theme(axis.ticks.x = element_line())
+                                     + scale_y_continuous(trans = reverse_log_trans(),
+                                                          labels = log10)
+                                     + ylab("log10(set size)"))
+    )
+    
+  )
+  
+  
+  dev.copy(pdf, paste0(output.dir, "Upset_plot_", subset.var[j], "_top20_intersects.pdf"))
+  dev.off()
+  
+  
+}
+
+
+```
  
