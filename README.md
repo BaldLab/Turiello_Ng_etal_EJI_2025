@@ -2,7 +2,7 @@
 
 # NKG7 is a stable marker of cytotoxicity across immune contexts and within the tumor microenvironment
 
-### [Preprint: is available on BioRxiv](https://www.biorxiv.org/content/10.1101/2025.02.05.636622v1)
+### [Publication: Published in European Journal of Immunology](https://pmc.ncbi.nlm.nih.gov/articles/PMC12179582/)
 
 ### Authors & Affiliations
 
